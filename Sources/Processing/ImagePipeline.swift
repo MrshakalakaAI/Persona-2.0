@@ -28,10 +28,14 @@ final class ImagePipeline {
         let masks = FaceMasks(extent:image.extent)
         for f in faces {
             let skin = masks.skin(f)
-            if s.smoothing > 0 || s.wrinkles > 0 {
-                let strength = max(s.smoothing,s.wrinkles*0.65)
+            if s.smoothing > 0 {
+                let strength = s.smoothing
                 let smooth = out.applyingFilter("CINoiseReduction",parameters:["inputNoiseLevel":0.02+strength*0.07,"inputSharpness":0.5])
                 out = blend(smooth,over:out,mask:skin,amount:strength*0.85)
+            }
+            if s.wrinkles > 0 {
+                let softened = out.applyingFilter("CINoiseReduction",parameters:["inputNoiseLevel":0.025+s.wrinkles*0.065,"inputSharpness":0.35])
+                out = blend(softened,over:out,mask:masks.forehead(f),amount:s.wrinkles*0.8)
             }
             if s.blemishes > 0 {
                 // Small-scale median suppression, never described as neural lesion removal.
@@ -85,6 +89,7 @@ final class ImagePipeline {
             out = out.applyingFilter("CITemperatureAndTint",parameters:["inputNeutral":CIVector(x:6500,y:0),"inputTargetNeutral":CIVector(x:6500-s.warmth*1800,y:0)])
         }
         out = out.applyingFilter("CIHighlightShadowAdjust",parameters:["inputHighlightAmount":s.highlights,"inputShadowAmount":s.shadows])
+        if s.noiseReduction > 0 { out = out.applyingFilter("CINoiseReduction",parameters:["inputNoiseLevel":s.noiseReduction*0.06,"inputSharpness":0.4]) }
         if s.sharpness > 0 { out = out.applyingFilter("CISharpenLuminance",parameters:[kCIInputSharpnessKey:s.sharpness]) }
         if s.vignette > 0 { out = out.applyingFilter("CIVignette",parameters:[kCIInputIntensityKey:s.vignette*1.5,kCIInputRadiusKey:min(e.width,e.height)*0.5]) }
         return out.cropped(to:e)

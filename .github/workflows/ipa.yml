@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths: ["Sources/**", "Resources/**", "Tests/**", "UITests/**", "Scripts/**", "project.yml", ".github/workflows/**"]
 permissions:
   contents: write
 concurrency:
@@ -27,9 +28,14 @@ jobs:
         run: |
           set -o pipefail
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for group in d["devices"].values() for v in group if "iPhone" in v["name"]))')
-          xcodebuild -project PersonaFree.xcodeproj -scheme PersonaFree -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath test-build -resultBundlePath TestResults.xcresult CODE_SIGNING_ALLOWED=NO test 2>&1 | tee tests.log
-          xcrun simctl launch "$DEVICE" com.personafree.editor
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcodebuild -project PersonaFree.xcodeproj -scheme PersonaFree -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath test-build -resultBundlePath TestResults.xcresult -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test 2>&1 | tee tests.log
+          xcrun simctl install "$DEVICE" test-build/Build/Products/Debug-iphonesimulator/PersonaFree.app
+          xcrun simctl launch --terminate-running-process "$DEVICE" com.personafree.editor --ui-test-photo
+          sleep 3
           xcrun simctl io "$DEVICE" screenshot simulator.png
+          ditto -c -k --keepParent TestResults.xcresult TestResults.zip
       - name: Package and verify IPA
         run: |
           mkdir -p Payload
@@ -43,4 +49,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="build-${GITHUB_RUN_NUMBER}"
-          gh release create "$TAG" personazh-unsigned.ipa personazh-unsigned.ipa.sha256 verification.json build.log tests.log simulator.png --target "$GITHUB_SHA" --title "personaж — проверенная unsigned-сборка $GITHUB_RUN_NUMBER" --notes "Автоматическая сборка и тесты завершены. IPA требует подписи собственным сертификатом. Ограничения и функции: README.md. Реальный iPhone не тестировался."
+          gh release create "$TAG" personazh-unsigned.ipa personazh-unsigned.ipa.sha256 verification.json build.log tests.log simulator.png TestResults.zip --target "$GITHUB_SHA" --title "personaж — проверенная unsigned-сборка $GITHUB_RUN_NUMBER" --notes "Автоматическая сборка и тесты завершены. IPA требует подписи собственным сертификатом. Ограничения и функции: README.md. Реальный iPhone не тестировался."

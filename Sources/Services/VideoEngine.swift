@@ -17,14 +17,6 @@ struct ImportedVideo: Transferable {
 
 final class VideoEngine {
     let pipeline = ImagePipeline()
-    func composition(asset: AVAsset, settings: EditSettings) -> AVVideoComposition {
-        AVVideoComposition(asset:asset) { [pipeline] request in
-            // Photo-specific face effects are deliberately excluded from video.
-            let source = request.sourceImage
-            let output = pipeline.crop(pipeline.color(source,settings:settings),settings:settings)
-            request.finish(with:output,context:pipeline.context)
-        }
-    }
     func export(url: URL, settings: EditSettings, progress: @escaping @Sendable (Float) -> Void) async throws -> URL {
         let asset = AVURLAsset(url:url)
         let tracks = try await asset.loadTracks(withMediaType:.video)

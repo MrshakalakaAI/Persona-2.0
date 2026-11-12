@@ -7,6 +7,7 @@ struct EditSettings: Equatable, Codable {
     var saturation = 1.0
     var warmth = 0.0
     var sharpness = 0.0
+    var noiseReduction = 0.0
     var highlights = 1.0
     var shadows = 0.0
     var vignette = 0.0

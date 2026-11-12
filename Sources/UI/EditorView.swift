@@ -53,6 +53,13 @@ struct EditorView: View {
             .disabled(model.busy)
             .overlay { if model.busy { Color.clear.allowsHitTesting(false) } }
         }
+        .task {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--ui-test-photo") {
+                await model.loadPhoto(DebugFixture.photo())
+            }
+            #endif
+        }
         .sheet(isPresented:$camera) {
             CameraPicker { image in
                 camera = false
@@ -101,7 +108,7 @@ struct EditorView: View {
                 VideoPlayer(player:player).clipShape(RoundedRectangle(cornerRadius:26))
             } else if let image = comparing ? model.original : model.preview {
                 Image(uiImage:image).resizable().scaledToFit().padding(4)
-                    .accessibilityIdentifier("photoPreview")
+                    .accessibilityIdentifier("photoPreview").accessibilityLabel("Предпросмотр фотографии")
             } else {
                 VStack(spacing:18) {
                     ZStack {
@@ -157,7 +164,7 @@ struct EditorView: View {
             slider("Уменьшение красноты",\.redness)
             slider("Тон кожи",\.skinTone,range:-1...1)
             slider("Свет под глазами",\.underEyes)
-            slider("Смягчение морщин",\.wrinkles)
+            slider("Смягчение линий лба",\.wrinkles)
         case .face:
             title("Тонкая геометрия","Небольшие локальные изменения. Сильный профиль и перекрытые лица снижают точность.")
             slider("Ширина лица",\.faceWidth,range:-1...1)
@@ -223,6 +230,7 @@ struct EditorView: View {
             slider("Насыщенность",\.saturation,range:0...2)
             slider("Температура",\.warmth,range:-1...1)
             slider("Резкость",\.sharpness)
+            slider("Шумоподавление кадра",\.noiseReduction)
             slider("Света",\.highlights,range:0...1)
             slider("Тени",\.shadows,range:-1...1)
             slider("Виньетка",\.vignette)

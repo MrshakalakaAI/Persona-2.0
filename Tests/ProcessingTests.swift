@@ -105,6 +105,13 @@ final class ProcessingTests: XCTestCase {
         for (a,b) in zip(pixel(image()),pixel(output)) { XCTAssertLessThanOrEqual(abs(Int(a)-Int(b)),2) }
         XCTAssertNotEqual(pixel(image(),at:CGPoint(x:200,y:242)),pixel(output,at:CGPoint(x:200,y:242)))
     }
+    func testGeometryMovesPixelsLocally() throws {
+        let gradient = CIFilter(name:"CILinearGradient",parameters:["inputPoint0":CIVector(x:0,y:0),"inputPoint1":CIVector(x:400,y:0),"inputColor0":CIColor.black,"inputColor1":CIColor.white])!.outputImage!.cropped(to:image().extent)
+        var settings = EditSettings(); settings.faceWidth = 1
+        let output = try pipeline.render(gradient,settings:settings,faces:[face()])
+        XCTAssertNotEqual(pixel(gradient,at:CGPoint(x:240,y:315)),pixel(output,at:CGPoint(x:240,y:315)))
+        for (a,b) in zip(pixel(gradient),pixel(output)) { XCTAssertLessThanOrEqual(abs(Int(a)-Int(b)),2) }
+    }
     func testJPEGExportDecodes() throws {
         let data = try XCTUnwrap(pipeline.context.jpegRepresentation(of:image(),colorSpace:CGColorSpace(name:CGColorSpace.sRGB)!,options:[:]))
         XCTAssertEqual(try MediaIO.decode(data,maxDimension:4096).extent,image().extent)

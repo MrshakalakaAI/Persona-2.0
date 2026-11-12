@@ -13,6 +13,7 @@ actor PhotoWorker {
         self.data = data; source = image; faces = detected
         return (try pipeline.bitmap(image),detected.count)
     }
+    func clear() { data = nil; source = nil; faces = [] }
     func render(_ settings: EditSettings) throws -> UIImage? {
         guard let source else { return nil }
         return try autoreleasepool { try pipeline.bitmap(pipeline.render(source,settings:settings,faces:faces)) }
@@ -44,7 +45,6 @@ actor PhotoWorker {
     private let photo = PhotoWorker()
     private let video = VideoEngine()
     private var renderTask: Task<Void,Never>?
-    private var importID = UUID()
     var isVideo: Bool { videoURL != nil }
     var hasMedia: Bool { original != nil || isVideo }
 
@@ -79,6 +79,7 @@ actor PhotoWorker {
         do {
             let asset = AVURLAsset(url:url)
             guard !(try await asset.loadTracks(withMediaType:.video)).isEmpty else { throw ProcessingError(message:"Не удалось прочитать видео") }
+            await photo.clear()
             clearVideo(); original = nil; preview = nil; faceCount = 0
             settings = EditSettings(); history = EditHistory(); videoURL = url
             player = AVPlayer(playerItem:AVPlayerItem(asset:asset))

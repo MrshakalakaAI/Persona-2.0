@@ -36,12 +36,22 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+  PersonaFreeUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: PersonaFree
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   PersonaFree:
     build:
       targets:
         PersonaFree: all
         PersonaFreeTests: [test]
+        PersonaFreeUITests: [test]
     test:
-      targets: [PersonaFreeTests]
+      targets: [PersonaFreeTests, PersonaFreeUITests]
       gatherCoverageData: true
