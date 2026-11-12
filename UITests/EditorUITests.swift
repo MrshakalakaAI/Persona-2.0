@@ -7,6 +7,7 @@ final class EditorUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.images["photoPreview"].waitForExistence(timeout:30))
         let studio = app.buttons["look_Студия"]
+        app.scrollViews["editorTools"].swipeUp()
         XCTAssertTrue(studio.waitForExistence(timeout:30))
         studio.tap()
         let undo = app.buttons["Отменить"]

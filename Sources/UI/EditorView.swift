@@ -58,7 +58,7 @@ struct EditorView: View {
                             controls
                         }
                     }.padding(20)
-                }.scrollIndicators(.hidden)
+                }.scrollIndicators(.hidden).accessibilityIdentifier("editorTools")
                 importBar
             }
             .background(background)

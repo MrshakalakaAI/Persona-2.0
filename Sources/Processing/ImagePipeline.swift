@@ -59,6 +59,9 @@ final class ImagePipeline {
                 let light = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:s.underEyes*0.4])
                 out = blend(light,over:out,mask:masks.eyeAreas(f,below:true),amount:0.8)
             }
+            if [s.smoothing,s.wrinkles,s.blemishes,s.redness,abs(s.skinTone),s.underEyes].filter({ $0 > 0 }).count >= 3 {
+                out = try materialize(out)
+            }
             if s.skinEvenness > 0 {
                 let radius = max(2,f.bounds.width*0.02)
                 let even = out.clampedToExtent().applyingFilter("CIGaussianBlur",parameters:[kCIInputRadiusKey:radius]).cropped(to:out.extent)
@@ -84,6 +87,9 @@ final class ImagePipeline {
                 let gloss = out.applyingFilter("CIHighlightShadowAdjust",parameters:["inputHighlightAmount":1,"inputShadowAmount":0.1]).applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:0.25])
                 out = blend(gloss,over:out,mask:masks.lips(f),amount:s.lipGloss)
             }
+            if [s.skinEvenness,s.skinGlow,s.teethWhitening,s.eyeLight,s.eyeContrast,abs(s.eyeSaturation),s.lipGloss].filter({ $0 > 0 }).count >= 3 {
+                out = try materialize(out)
+            }
             let palette: [(CGFloat,CGFloat,CGFloat)] = [(0.72,0.13,0.28),(0.65,0.26,0.29),(0.54,0.15,0.38),(0.85,0.35,0.29),(0.45,0.25,0.23)]
             let p = palette[min(max(s.makeupColor,0),palette.count-1)]
             if s.lipstick > 0 { out = tint(out,mask:masks.lips(f),rgb:p,amount:s.lipstick*0.7) }
@@ -91,6 +97,7 @@ final class ImagePipeline {
             if s.eyeshadow > 0 { out = tint(out,mask:masks.eyeAreas(f,below:false),rgb:p,amount:s.eyeshadow*0.35) }
             if s.eyeliner > 0 { out = tint(out,mask:masks.liner(f),rgb:(0.12,0.08,0.13),amount:s.eyeliner*0.8) }
             if s.brows > 0 { out = tint(out,mask:masks.eyebrows(f),rgb:(0.22,0.12,0.10),amount:s.brows*0.55) }
+            if [s.lipstick,s.blush,s.eyeshadow,s.eyeliner,s.brows].filter({ $0 > 0 }).count >= 3 { out = try materialize(out) }
         }
         // Warp after retouch so masks stay attached to the altered features.
         for f in activeFaces { out = try geometry(out,face:f,settings:s) }
@@ -136,6 +143,7 @@ final class ImagePipeline {
     private func geometry(_ input: CIImage, face f: FaceGeometry, settings s: EditSettings) throws -> CIImage {
         var out = input
         let b = f.bounds
+        var warpCount = 0
         func apply(_ center: CGPoint?, _ rx: CGFloat, _ ry: CGFloat, _ sx: Double = 0, _ sy: Double = 0, _ dy: CGFloat = 0, dx: CGFloat = 0) throws {
             guard let center, sx != 0 || sy != 0 || dy != 0 || dx != 0 else { return }
             guard let warp else { throw ProcessingError(message:"Устройство не поддерживает геометрию Core Image") }
@@ -145,6 +153,8 @@ final class ImagePipeline {
                 throw ProcessingError(message:"Не удалось обработать геометрию лица")
             }
             out = result
+            warpCount += 1
+            if warpCount % 4 == 0 { out = try materialize(out) }
         }
         try apply(CGPoint(x:b.midX,y:b.midY),b.width*0.65,b.height*0.65,s.faceWidth*0.14)
         try apply(CGPoint(x:b.midX,y:b.minY+b.height*0.12),b.width*0.38,b.height*0.28,0,0,CGFloat(s.chin)*b.height*0.035)
@@ -202,7 +212,7 @@ final class ImagePipeline {
             switch dab.mode {
             case .heal:
                 let direction: CGFloat = center.x+radius*3 < e.maxX ? 1 : -1
-                front = out.clampedToExtent().transformed(by:CGAffineTransform(translationX:-direction*radius*2.4,y:0)).cropped(to:e)
+                front = input.clampedToExtent().transformed(by:CGAffineTransform(translationX:-direction*radius*2.4,y:0)).cropped(to:e)
             case .smooth:
                 front = out.clampedToExtent().applyingFilter("CIGaussianBlur",parameters:[kCIInputRadiusKey:radius*0.25]).cropped(to:e)
             case .lighten: front = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:0.35])
@@ -211,6 +221,14 @@ final class ImagePipeline {
             out = blend(front,over:out,mask:mask,amount:dab.strength)
         }
         return out
+    }
+    private func materialize(_ image: CIImage) throws -> CIImage {
+        try autoreleasepool {
+            guard let cg = context.createCGImage(image,from:image.extent,format:.RGBA8,colorSpace:CGColorSpace(name:CGColorSpace.sRGB)) else {
+                throw ProcessingError(message:"Недостаточно памяти для промежуточной обработки")
+            }
+            return CIImage(cgImage:cg).transformed(by:CGAffineTransform(translationX:image.extent.minX,y:image.extent.minY))
+        }
     }
     func bitmap(_ image: CIImage) throws -> UIImage {
         guard let cg = context.createCGImage(image,from:image.extent,format:.RGBA8,colorSpace:CGColorSpace(name:CGColorSpace.sRGB)) else { throw ProcessingError(message:"Недостаточно памяти для изображения") }

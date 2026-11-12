@@ -25,6 +25,7 @@ jobs:
           set -o pipefail
           xcodebuild -project PersonaFree.xcodeproj -scheme PersonaFree -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build 2>&1 | tee build.log
       - name: Run processing and export tests on simulator
+        timeout-minutes: 18
         run: |
           set -o pipefail
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for group in d["devices"].values() for v in group if "iPhone" in v["name"]))')
