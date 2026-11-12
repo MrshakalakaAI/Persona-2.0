@@ -1,0 +1,21 @@
+name: PersonaFree
+options:
+  bundleIdPrefix: com.personafree
+settings:
+  base:
+    IPHONEOS_DEPLOYMENT_TARGET: '17.0'
+    SWIFT_VERSION: '5.9'
+targets:
+  PersonaFree:
+    type: application
+    platform: iOS
+    sources: [Sources]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.personafree.editor
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Beauty Studio
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Выбор фотографии для редактирования
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: Сохранение обработанного фото
+        TARGETED_DEVICE_FAMILY: '1'
+        CODE_SIGNING_ALLOWED: NO
