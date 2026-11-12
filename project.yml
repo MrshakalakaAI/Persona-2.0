@@ -14,7 +14,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.personafree.editor
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Beauty Studio
+        INFOPLIST_KEY_CFBundleDisplayName: personaж
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Выбор фотографии для редактирования
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: Сохранение обработанного фото
         TARGETED_DEVICE_FAMILY: '1'
