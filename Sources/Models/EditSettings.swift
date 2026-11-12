@@ -72,7 +72,30 @@ struct EditSettings: Equatable, Codable {
 enum PhotoStyle: String, CaseIterable, Codable, Identifiable {
     case natural = "Natural", portrait = "Portrait", softBeauty = "Soft Beauty"
     case cinematic = "Cinematic", vintage = "Vintage", warm = "Warm", cold = "Cold", monochrome = "Black & White"
+    case peach = "Peach", rose = "Rose", mocha = "Mocha", goldenHour = "Golden Hour", editorial = "Editorial"
     var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .natural:return "Оригинал";case .portrait:return "Портрет";case .softBeauty:return "Мягкий свет";case .cinematic:return "Кино";case .vintage:return "Винтаж";case .warm:return "Тёплый";case .cold:return "Холодный";case .monochrome:return "Чёрно-белый";case .peach:return "Персик";case .rose:return "Розовый шёлк";case .mocha:return "Мокко";case .goldenHour:return "Золотой час";case .editorial:return "Журнал"
+        }
+    }
+    var detail: String {
+        switch self {
+        case .natural:return "Исходный цвет. Ручные настройки и образ сохраняются."
+        case .portrait:return "Чистые средние тона, мягкие света и спокойный цвет."
+        case .softBeauty:return "Приподнятые тени и лёгкое оптическое свечение. Это световой эффект, без ретуши кожи."
+        case .cinematic:return "Прохладные тени, тёплые света, приглушённый цвет."
+        case .vintage:return "Матовый чёрный, сжатые света и тёплая плёночная палитра."
+        case .warm:return "Тёплые света и мягкий янтарный оттенок."
+        case .cold:return "Стальные тени и прохладный белый."
+        case .monochrome:return "Чистый монохром с глубокими тенями."
+        case .peach:return "Персиковые света и светлые мягкие полутона."
+        case .rose:return "Приглушённый цвет с розовыми светами и лиловыми тенями."
+        case .mocha:return "Кофейные тени, сниженная насыщенность и матовый контраст."
+        case .goldenHour:return "Золотистый свет, насыщенный цвет и лёгкое свечение."
+        case .editorial:return "Глубокий контраст, прохладные тени и сдержанный цвет."
+        }
+    }
 }
 
 enum CropAspect: String, CaseIterable, Codable, Identifiable {

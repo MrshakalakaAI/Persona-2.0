@@ -1,6 +1,21 @@
 import XCTest
 
 final class EditorUITests: XCTestCase {
+    func testColorFilterCatalogueAppliesToRealPhoto() {
+        let app = XCUIApplication(); app.launchArguments = ["--ui-test-photo"]; app.launch()
+        XCTAssertTrue(app.images["photoPreview"].waitForExistence(timeout:30))
+        let filters = app.buttons["tab_Фильтры"]
+        for _ in 0..<4 { if filters.isHittable { break }; app.scrollViews["toolTabs"].swipeLeft() }
+        XCTAssertTrue(filters.isHittable); filters.tap()
+        let cinema = app.buttons["style_Cinematic"]
+        XCTAssertTrue(cinema.waitForExistence(timeout:30))
+        for _ in 0..<3 { if cinema.isHittable { break }; app.scrollViews["editorTools"].swipeUp() }
+        XCTAssertTrue(cinema.isHittable); cinema.tap()
+        let applied = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label CONTAINS %@","Применён фильтр «Кино»"),object:app.staticTexts["status"])
+        XCTAssertEqual(XCTWaiter.wait(for:[applied],timeout:45),.completed)
+        XCTAssertTrue(app.buttons["Отменить"].isEnabled)
+        let screenshot = XCTAttachment(screenshot:app.screenshot());screenshot.name = "Каталог фильтров на реальном фото";screenshot.lifetime = .keepAlways;add(screenshot)
+    }
     func testImportFixtureFilterUndoAndInformation() {
         let app = XCUIApplication()
         app.launchArguments = ["--ui-test-photo"]

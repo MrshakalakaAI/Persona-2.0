@@ -215,16 +215,7 @@ struct EditorView: View {
                 Button("Очистить точки (\(model.settings.dabs.count)/80)") { model.change { $0.dabs = [] } }.disabled(model.settings.dabs.isEmpty)
             }
         case .filters:
-            title("Настроение кадра","Восемь вариантов с регулируемой силой.")
-            LazyVGrid(columns:[GridItem(.adaptive(minimum:95))],spacing:10) {
-                ForEach(PhotoStyle.allCases) { style in
-                    Button { model.change { $0.filter = style } } label: {
-                        Text(style.rawValue).font(.caption.weight(.medium)).frame(maxWidth:.infinity).padding(.vertical,14)
-                            .background(model.settings.filter == style ? accent.opacity(0.20) : .white.opacity(0.05),in:RoundedRectangle(cornerRadius:12))
-                    }
-                }
-            }
-            slider("Сила фильтра",\.filterAmount)
+            StyleControls(model:model)
         case .light:
             title("Свет и цвет","")
             colorSliders

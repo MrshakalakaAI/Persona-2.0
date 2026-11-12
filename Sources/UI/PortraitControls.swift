@@ -68,13 +68,17 @@ struct BeautyLooksPanel: View {
             }
             Slider(value:$model.settings.beautyAmount,in:0...1,onEditingChanged:{ active in if active { model.beginEdit() } else { model.endEdit() } })
                 .disabled(model.settings.beautyLook == .none).accessibilityLabel("Сила образа")
-            Text(model.settings.beautyLook == .none ? "Нажми на образ ниже — затем меняй его силу." : "Удерживай «до / после» на фотографии для сравнения.")
+            Text(model.settings.beautyLook.detail)
                 .font(.caption).foregroundStyle(.secondary)
+            if model.thumbnailsLoading { ProgressView("Готовлю примеры на твоём фото…").font(.caption) }
+            Text("Образы: 12 вариантов · сила 0–100%").font(.caption).foregroundStyle(.secondary)
             LazyVGrid(columns:[GridItem(.adaptive(minimum:110))],spacing:10) {
                 ForEach(BeautyLook.allCases) { look in
                     Button { select(look) } label: {
                         VStack(spacing:8) {
-                            Image(systemName:look.icon).font(.title2)
+                            if let thumbnail = model.lookThumbnails[look] {
+                                Image(uiImage:thumbnail).resizable().scaledToFill().frame(height:100).clipped().accessibilityHidden(true)
+                            } else { Image(systemName:look.icon).font(.title2).frame(height:60) }
                             Text(look.rawValue).font(.caption.weight(.medium))
                         }.frame(maxWidth:.infinity,minHeight:68)
                             .background(model.settings.beautyLook == look ? Color.pink.opacity(0.2) : .white.opacity(0.05),in:RoundedRectangle(cornerRadius:16))

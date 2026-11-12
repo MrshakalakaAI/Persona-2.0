@@ -33,6 +33,9 @@ actor PhotoWorker {
     @Published var settings = EditSettings()
     @Published var original: UIImage?
     @Published var preview: UIImage?
+    @Published var lookThumbnails: [BeautyLook:UIImage] = [:]
+    @Published var styleThumbnails: [PhotoStyle:UIImage] = [:]
+    @Published var thumbnailsLoading = false
     @Published var faceCount = 0
     @Published var faceRects: [CGRect] = []
     @Published var busy = false
@@ -46,6 +49,8 @@ actor PhotoWorker {
     private let photo = PhotoWorker()
     private let video = VideoEngine()
     private var renderTask: Task<Void,Never>?
+    private var thumbnailTask: Task<Void,Never>?
+    private var thumbnailGeneration = UUID()
     var isVideo: Bool { videoURL != nil }
     var hasMedia: Bool { original != nil || isVideo }
 
@@ -71,6 +76,7 @@ actor PhotoWorker {
             let count = rects.count
             clearVideo(); original = image; preview = image; faceCount = count; faceRects = rects
             settings = EditSettings(); history = EditHistory()
+            makeThumbnails(data)
             message = count == 0 ? "Лицо не найдено. Доступны фильтры, свет и кадрирование." : "Лиц найдено: \(count). Обработка выполняется на iPhone."
         } catch { message = error.localizedDescription }
     }
@@ -81,12 +87,29 @@ actor PhotoWorker {
         do {
             let asset = AVURLAsset(url:url)
             guard !(try await asset.loadTracks(withMediaType:.video)).isEmpty else { throw ProcessingError(message:"Не удалось прочитать видео") }
+            thumbnailTask?.cancel(); thumbnailGeneration = UUID(); lookThumbnails = [:]; styleThumbnails = [:]; thumbnailsLoading = false
             await photo.clear()
             clearVideo(); original = nil; preview = nil; faceCount = 0; faceRects = []
             settings = EditSettings(); history = EditHistory(); videoURL = url
             player = AVPlayer(playerItem:AVPlayerItem(asset:asset))
             message = "Видео: цвет и кадрирование. Для обработки лица включи «Ретушь видео»; экспорт до 1280 px."
         } catch { try? FileManager.default.removeItem(at:url); message = error.localizedDescription }
+    }
+    private func makeThumbnails(_ data: Data) {
+        thumbnailTask?.cancel()
+        let generation = UUID(); thumbnailGeneration = generation
+        lookThumbnails = [:]; styleThumbnails = [:]; thumbnailsLoading = true
+        thumbnailTask = Task { [weak self] in
+            do {
+                let result = try await ThumbnailWorker().generate(data)
+                try Task.checkCancellation()
+                guard let self, self.thumbnailGeneration == generation else { return }
+                self.lookThumbnails = result.0; self.styleThumbnails = result.1; self.thumbnailsLoading = false
+            } catch {
+                guard let self, self.thumbnailGeneration == generation else { return }
+                self.thumbnailsLoading = false
+            }
+        }
     }
     private func clearVideo() {
         player?.pause(); player = nil
@@ -117,6 +140,8 @@ actor PhotoWorker {
                     self.preview = result
                     if snapshot.beautyLook != .none {
                         self.message = "Применён образ «\(snapshot.beautyLook.rawValue)» · \(Int(snapshot.beautyAmount*100))% · Лиц: \(self.faceCount)"
+                    } else if snapshot.filter != .natural {
+                        self.message = "Применён фильтр «\(snapshot.filter.title)» · \(Int(snapshot.filterAmount*100))%"
                     } else {
                         self.message = "Обработка обновлена · Лиц: \(self.faceCount)"
                     }

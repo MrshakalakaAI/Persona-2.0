@@ -107,18 +107,7 @@ final class ImagePipeline {
     func color(_ input: CIImage, settings s: EditSettings) -> CIImage {
         let e = input.extent
         var out = input
-        var styled = input
-        switch s.filter {
-        case .natural: break
-        case .portrait: styled = input.applyingFilter("CIColorControls",parameters:[kCIInputSaturationKey:0.9,kCIInputContrastKey:1.07])
-        case .softBeauty: styled = input.applyingFilter("CIColorControls",parameters:[kCIInputBrightnessKey:0.025,kCIInputContrastKey:0.95,kCIInputSaturationKey:0.92])
-        case .cinematic: styled = input.applyingFilter("CIPhotoEffectProcess").applyingFilter("CIColorControls",parameters:[kCIInputSaturationKey:0.78])
-        case .vintage: styled = input.applyingFilter("CIPhotoEffectTransfer")
-        case .warm: styled = input.applyingFilter("CITemperatureAndTint",parameters:["inputNeutral":CIVector(x:6500,y:0),"inputTargetNeutral":CIVector(x:5200,y:0)])
-        case .cold: styled = input.applyingFilter("CITemperatureAndTint",parameters:["inputNeutral":CIVector(x:6500,y:0),"inputTargetNeutral":CIVector(x:8000,y:0)])
-        case .monochrome: styled = input.applyingFilter("CIPhotoEffectMono")
-        }
-        if s.filter != .natural { out = blend(styled,over:out,mask:CIImage(color:.white).cropped(to:e),amount:s.filterAmount) }
+        out = StyleRenderer().render(input,style:s.filter,amount:s.filterAmount)
         out = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:s.exposure])
             .applyingFilter("CIColorControls",parameters:[kCIInputBrightnessKey:s.brightness,kCIInputContrastKey:s.contrast,kCIInputSaturationKey:s.saturation])
         if s.warmth != 0 {
