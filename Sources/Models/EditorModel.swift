@@ -106,7 +106,7 @@ actor PhotoWorker {
                     item.videoComposition = try await self.video.makeComposition(asset:AVURLAsset(url:url),settings:snapshot)
                     try Task.checkCancellation()
                     self.player?.replaceCurrentItem(with:item)
-                    self.player?.seek(to:time,toleranceBefore:.zero,toleranceAfter:.zero)
+                    await self.player?.seek(to:time,toleranceBefore:.zero,toleranceAfter:.zero)
                 } else {
                     let result = try await self.photo.render(snapshot)
                     try Task.checkCancellation()

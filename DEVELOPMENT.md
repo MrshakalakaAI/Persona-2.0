@@ -23,3 +23,7 @@
 ### Инфраструктура Actions
 
 Прямой запрос check-run annotations подтвердил причину старых сбоев: `The job was not acquired by Runner of type hosted even after multiple attempts`; GitHub также указал ограничения ёмкости macOS arm64. Runner заменён на стандартный бесплатный `macos-15-intel`, без увеличения размера машины.
+
+### Первая компиляция
+
+Intel runner успешно выделен. Запуск `43198093289` дошёл до компилятора и обнаружил два исправляемых дефекта: отсутствующий CoreImage import в VideoEngine и async seek без await в EditorModel. Исправлены; тесты до этого этапа ещё не запускались.
