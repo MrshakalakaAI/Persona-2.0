@@ -56,7 +56,13 @@ struct BeautyLooksPanel: View {
     var body: some View {
         VStack(alignment:.leading,spacing:14) {
             HStack {
-                Text(model.settings.beautyLook == .none ? "Выбери образ" : model.settings.beautyLook.rawValue).font(.headline)
+                Menu {
+                    ForEach(BeautyLook.allCases) { look in
+                        Button(look.rawValue) { select(look) }
+                    }
+                } label: {
+                    Label(model.settings.beautyLook == .none ? "Выбери образ" : model.settings.beautyLook.rawValue,systemImage:"chevron.down").font(.headline)
+                }.accessibilityIdentifier("beautyLookMenu")
                 Spacer()
                 Text(String(format:"%.0f%%",model.settings.beautyAmount*100)).font(.subheadline.monospacedDigit())
             }
@@ -66,13 +72,7 @@ struct BeautyLooksPanel: View {
                 .font(.caption).foregroundStyle(.secondary)
             LazyVGrid(columns:[GridItem(.adaptive(minimum:110))],spacing:10) {
                 ForEach(BeautyLook.allCases) { look in
-                    Button {
-                        model.change {
-                            $0.beautyLook = look
-                            $0.makeupColor = look.recipe.makeupColor
-                            if $0.beautyAmount == 0 && look != .none { $0.beautyAmount = 1 }
-                        }
-                    } label: {
+                    Button { select(look) } label: {
                         VStack(spacing:8) {
                             Image(systemName:look.icon).font(.title2)
                             Text(look.rawValue).font(.caption.weight(.medium))
@@ -83,4 +83,12 @@ struct BeautyLooksPanel: View {
             }
         }
     }
+    private func select(_ look: BeautyLook) {
+        model.change {
+            $0.beautyLook = look
+            $0.makeupColor = look.recipe.makeupColor
+            if $0.beautyAmount == 0 && look != .none { $0.beautyAmount = 1 }
+        }
+    }
+
 }

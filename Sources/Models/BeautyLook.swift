@@ -10,11 +10,11 @@ enum BeautyLook: String, CaseIterable, Codable, Identifiable {
         var s = EditSettings()
         switch self {
         case .none: break
-        case .natural: s.smoothing=0.65; s.blemishes=0.45; s.skinEvenness=0.35; s.redness=0.2; s.underEyes=0.4; s.eyeLight=0.25; s.teethWhitening=0.35
+        case .natural: s.smoothing=0.8; s.blemishes=0.5; s.skinEvenness=0.5; s.skinGlow=0.45; s.redness=0.2; s.underEyes=0.55; s.eyeLight=0.3; s.eyeContrast=0.15; s.teethWhitening=0.4
         case .fresh: s.smoothing=0.55; s.underEyes=0.7; s.redness=0.3; s.blush=0.35; s.eyeLight=0.4; s.skinGlow=0.5; s.skinEvenness=0.25
         case .studio: s.smoothing=0.85; s.blemishes=0.65; s.skinEvenness=0.65; s.eyeContrast=0.35; s.teethWhitening=0.6; s.faceWidth=0.35; s.sharpness=0.08
         case .nude: s.smoothing=0.6; s.lipstick=0.5; s.blush=0.3; s.brows=0.3; s.eyeshadow=0.25; s.makeupColor=1; s.skinEvenness=0.35
-        case .evening: s.smoothing=0.65; s.lipstick=0.9; s.eyeshadow=0.65; s.eyeliner=0.8; s.brows=0.45; s.blush=0.4; s.makeupColor=2; s.skinEvenness=0.35
+        case .evening: s.smoothing=0.85; s.lipstick=0.9; s.eyeshadow=0.65; s.eyeliner=0.8; s.brows=0.45; s.blush=0.4; s.makeupColor=2; s.skinEvenness=0.55; s.skinGlow=0.45; s.underEyes=0.5; s.teethWhitening=0.3; s.eyeLight=0.2
         case .glow: s.smoothing=0.6; s.skinGlow=0.8; s.underEyes=0.5; s.blush=0.3; s.eyeLight=0.35; s.lipGloss=0.6
         case .sculpt: s.faceWidth=0.65; s.cheeks=0.5; s.jaw=0.65; s.chin=0.25; s.smoothing=0.45; s.eyeContrast=0.3
         }

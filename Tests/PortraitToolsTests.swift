@@ -32,6 +32,9 @@ final class PortraitToolsTests: XCTestCase {
         let face = try XCTUnwrap(faces.first)
         let roi = face.bounds.insetBy(dx:face.bounds.width*0.08,dy:face.bounds.height*0.08).integral.intersection(image.extent)
         let width = Int(roi.width), height = Int(roi.height)
+        let geometric = FaceMasks(extent:image.extent).skin(face)
+        let skin = PortraitDetail().skinMask(image,geometric:geometric)
+        let maskAttachment = XCTAttachment(image:try pipeline.bitmap(skin)); maskAttachment.name = "Beauty actual skin coverage"; maskAttachment.lifetime = .keepAlways; add(maskAttachment)
         func pixels(_ output: CIImage) -> [UInt8] {
             var bytes = [UInt8](repeating:0,count:width*height*4)
             pipeline.context.render(output,toBitmap:&bytes,rowBytes:width*4,bounds:roi,format:.RGBA8,colorSpace:CGColorSpace(name:CGColorSpace.sRGB))
@@ -53,6 +56,25 @@ final class PortraitToolsTests: XCTestCase {
             print("Beauty face ROI \(look.rawValue): mean RGB difference \(delta)")
             XCTAssertGreaterThan(delta,minimum,"\(look.rawValue) must measurably change the face, not merely render")
             let attachment = XCTAttachment(image:try pipeline.bitmap(result)); attachment.name = "Beauty 1.2 — \(look.rawValue)"; attachment.lifetime = .keepAlways; add(attachment)
+            if look == .evening {
+                let lipRect = FaceMasks(extent:image.extent).bounding(face.outerLips).integral.intersection(image.extent)
+                let w = Int(lipRect.width), h = Int(lipRect.height)
+                XCTAssertGreaterThan(w*h,0)
+                if w*h > 0 {
+                    var mask = [UInt8](repeating:0,count:w*h*4), original = mask, changed = mask
+                    pipeline.context.render(FaceMasks(extent:image.extent).lips(face),toBitmap:&mask,rowBytes:w*4,bounds:lipRect,format:.RGBA8,colorSpace:CGColorSpace(name:CGColorSpace.sRGB))
+                    pipeline.context.render(image,toBitmap:&original,rowBytes:w*4,bounds:lipRect,format:.RGBA8,colorSpace:CGColorSpace(name:CGColorSpace.sRGB))
+                    pipeline.context.render(result,toBitmap:&changed,rowBytes:w*4,bounds:lipRect,format:.RGBA8,colorSpace:CGColorSpace(name:CGColorSpace.sRGB))
+                    var difference = 0.0, channels = 0
+                    for i in stride(from:0,to:mask.count,by:4) where mask[i] > 128 {
+                        for c in 0..<3 { difference += abs(Double(original[i+c])-Double(changed[i+c])); channels += 1 }
+                    }
+                    XCTAssertGreaterThan(channels,0)
+                    let lipDelta = difference/Double(max(1,channels))
+                    print("Beauty evening lipstick ROI difference \(lipDelta)")
+                    XCTAssertGreaterThan(lipDelta,3,"Evening must change the actual lips, not just overall lighting")
+                }
+            }
             if look == .studio {
                 settings.beautyAmount = 0
                 XCTAssertEqual(pixels(try pipeline.render(image,settings:settings,faces:faces)),baseline)
