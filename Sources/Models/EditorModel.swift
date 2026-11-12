@@ -115,6 +115,9 @@ actor PhotoWorker {
                     let result = try await self.photo.render(snapshot)
                     try Task.checkCancellation()
                     self.preview = result
+                    if snapshot.beautyLook != .none {
+                        self.message = "Применён образ «\(snapshot.beautyLook.rawValue)» · \(Int(snapshot.beautyAmount*100))% · Лиц: \(self.faceCount)"
+                    }
                 }
             } catch is CancellationError {} catch { self?.message = error.localizedDescription }
         }

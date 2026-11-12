@@ -3,9 +3,9 @@ import Foundation
 struct EditSettings: Equatable, Codable {
     var videoRetouch = false
     var beautyLook: BeautyLook = .none
-    var beautyAmount = 0.7
+    var beautyAmount = 1.0
     var selectedFace: Int? = nil
-    var texture = 0.65
+    var texture = 0.45
     var skinEvenness = 0.0
     var skinGlow = 0.0
     var teethWhitening = 0.0

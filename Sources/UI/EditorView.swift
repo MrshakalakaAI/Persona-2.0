@@ -23,6 +23,8 @@ struct EditorView: View {
     @State private var lastBrushPoint: CGPoint?
     @State private var camera = false
     @State private var comparing = false
+    @GestureState private var compareHeld = false
+    private var showOriginal: Bool { comparing || compareHeld }
     @State private var showInfo = false
     @State private var confirmReset = false
     private let accent = Color(red:0.94,green:0.65,blue:0.79)
@@ -123,14 +125,14 @@ struct EditorView: View {
             RoundedRectangle(cornerRadius:26).fill(.white.opacity(0.035))
             if let player = model.player {
                 VideoPlayer(player:player).clipShape(RoundedRectangle(cornerRadius:26))
-            } else if let image = comparing ? model.original : model.preview {
+            } else if let image = showOriginal ? model.original : model.preview {
                 GeometryReader { proxy in
                     let scale = min(proxy.size.width/image.size.width,proxy.size.height/image.size.height)
                     let width = image.size.width*scale, height = image.size.height*scale
                     ZStack {
                         Image(uiImage:image).resizable().scaledToFit()
                             .accessibilityIdentifier("photoPreview").accessibilityLabel("Предпросмотр фотографии")
-                        if category == .brush && !comparing {
+                        if category == .brush && !showOriginal {
                             Color.clear.contentShape(Rectangle()).gesture(DragGesture(minimumDistance:0).onChanged { value in
                                 let unit = CGPoint(x:min(1,max(0,value.location.x/width)),y:min(1,max(0,value.location.y/height)))
                                 if !painting { model.beginEdit(); painting = true; lastBrushPoint = nil }
@@ -155,10 +157,10 @@ struct EditorView: View {
                 HStack {
                     Label("\(model.faceCount)",systemImage:"face.smiling").font(.caption).padding(9).background(.ultraThinMaterial,in:Capsule())
                     Spacer()
-                    Text(comparing ? "Оригинал" : "Удерживай: до / после")
+                    Text(showOriginal ? "Оригинал" : "Удерживай: до / после")
                         .font(.caption.weight(.medium)).padding(10).background(.ultraThinMaterial,in:Capsule())
-                        .gesture(DragGesture(minimumDistance:0).onChanged { _ in comparing = true }.onEnded { _ in comparing = false })
-                        .accessibilityAddTraits(.isButton)
+                        .gesture(DragGesture(minimumDistance:0).updating($compareHeld) { _, held, _ in held = true })
+                        .accessibilityAddTraits(.isButton).accessibilityIdentifier("comparePhoto")
                         .accessibilityAction { comparing.toggle() }
                 }.padding(14)
             }

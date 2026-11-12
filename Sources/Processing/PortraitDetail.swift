@@ -12,7 +12,7 @@ final class PortraitDetail {
             float l=dot(p.rgb,vec3(0.2126,0.7152,0.0722));
             float warm=smoothstep(-0.02,0.06,p.r-p.b)*smoothstep(-0.04,0.025,p.r-p.g);
             float light=smoothstep(0.015,0.07,l)*(1.0-smoothstep(0.94,1.0,l));
-            float m=warm*light;
+            float m=(0.25+0.75*warm)*light;
             return vec4(m,m,m,1.0);
         }
         """)
@@ -24,10 +24,15 @@ final class PortraitDetail {
             return vec4(m,m,m,1.0);
         }
         """)
-    func smooth(_ image: CIImage, strength: Double, texture: Double) -> CIImage {
-        let radius = max(0.7,min(image.extent.width,image.extent.height)*0.002)
-        let low = image.clampedToExtent().applyingFilter("CIGaussianBlur",parameters:[kCIInputRadiusKey:radius]).cropped(to:image.extent)
-        let soft = image.applyingFilter("CINoiseReduction",parameters:["inputNoiseLevel":0.025+strength*0.07,"inputSharpness":0.2])
+    func smooth(_ image: CIImage, strength: Double, texture: Double, faceWidth: CGFloat) -> CIImage {
+        // Low frequencies carry tone; return a controlled amount of fine detail.
+        // A real low-pass base is required: adding detail to an almost unchanged
+        // noise-reduction result previously cancelled the intended smoothing.
+        let radius = max(0.9,faceWidth*0.022*(0.35+0.65*CGFloat(strength)))
+        let fineRadius = max(0.5,radius*0.35)
+        let source = image.clampedToExtent()
+        let low = source.applyingFilter("CIGaussianBlur",parameters:[kCIInputRadiusKey:fineRadius]).cropped(to:image.extent)
+        let soft = source.applyingFilter("CIGaussianBlur",parameters:[kCIInputRadiusKey:radius]).cropped(to:image.extent)
         return restore?.apply(extent:image.extent,arguments:[image,low,soft,texture]) ?? soft
     }
     func skinMask(_ image: CIImage, geometric: CIImage) -> CIImage {

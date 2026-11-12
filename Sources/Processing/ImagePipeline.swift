@@ -33,8 +33,8 @@ final class ImagePipeline {
             let skin = detail.skinMask(out,geometric:masks.skin(f))
             if s.smoothing > 0 {
                 let strength = s.smoothing
-                let smooth = detail.smooth(out,strength:strength,texture:s.texture)
-                out = blend(smooth,over:out,mask:skin,amount:strength*0.85)
+                let smooth = detail.smooth(out,strength:strength,texture:s.texture,faceWidth:f.bounds.width)
+                out = blend(smooth,over:out,mask:skin,amount:strength*0.95)
             }
             if s.wrinkles > 0 {
                 let softened = out.applyingFilter("CINoiseReduction",parameters:["inputNoiseLevel":0.025+s.wrinkles*0.065,"inputSharpness":0.35])
@@ -56,7 +56,7 @@ final class ImagePipeline {
                 out = blend(tone,over:out,mask:skin,amount:0.7)
             }
             if s.underEyes > 0 {
-                let light = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:s.underEyes*0.4])
+                let light = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:s.underEyes*0.55])
                 out = blend(light,over:out,mask:masks.eyeAreas(f,below:true),amount:0.8)
             }
             if [s.smoothing,s.wrinkles,s.blemishes,s.redness,abs(s.skinTone),s.underEyes].filter({ $0 > 0 }).count >= 3 {
@@ -65,11 +65,11 @@ final class ImagePipeline {
             if s.skinEvenness > 0 {
                 let radius = max(2,f.bounds.width*0.02)
                 let even = out.clampedToExtent().applyingFilter("CIGaussianBlur",parameters:[kCIInputRadiusKey:radius]).cropped(to:out.extent)
-                out = blend(even,over:out,mask:skin,amount:s.skinEvenness*0.18)
+                out = blend(even,over:out,mask:skin,amount:s.skinEvenness*0.4)
             }
             if s.skinGlow > 0 {
-                let glow = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:s.skinGlow*0.22]).applyingFilter("CIHighlightShadowAdjust",parameters:["inputHighlightAmount":0.8,"inputShadowAmount":0.1])
-                out = blend(glow,over:out,mask:skin,amount:s.skinGlow*0.65)
+                let glow = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:s.skinGlow*0.3]).applyingFilter("CIHighlightShadowAdjust",parameters:["inputHighlightAmount":0.8,"inputShadowAmount":0.1])
+                out = blend(glow,over:out,mask:skin,amount:s.skinGlow*0.8)
             }
             if s.teethWhitening > 0 {
                 let whitened = out.applyingFilter("CIColorControls",parameters:[kCIInputSaturationKey:0.1]).applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:0.35])
@@ -92,8 +92,8 @@ final class ImagePipeline {
             }
             let palette: [(CGFloat,CGFloat,CGFloat)] = [(0.72,0.13,0.28),(0.65,0.26,0.29),(0.54,0.15,0.38),(0.85,0.35,0.29),(0.45,0.25,0.23)]
             let p = palette[min(max(s.makeupColor,0),palette.count-1)]
-            if s.lipstick > 0 { out = tint(out,mask:masks.lips(f),rgb:p,amount:s.lipstick*0.7) }
-            if s.blush > 0 { out = tint(out,mask:masks.cheeks(f),rgb:p,amount:s.blush*0.25) }
+            if s.lipstick > 0 { out = tint(out,mask:masks.lips(f),rgb:p,amount:s.lipstick*0.85,mode:"CIColorBlendMode") }
+            if s.blush > 0 { out = tint(out,mask:masks.cheeks(f),rgb:p,amount:s.blush*0.4) }
             if s.eyeshadow > 0 { out = tint(out,mask:masks.eyeAreas(f,below:false),rgb:p,amount:s.eyeshadow*0.35) }
             if s.eyeliner > 0 { out = tint(out,mask:masks.liner(f),rgb:(0.12,0.08,0.13),amount:s.eyeliner*0.8) }
             if s.brows > 0 { out = tint(out,mask:masks.eyebrows(f),rgb:(0.22,0.12,0.10),amount:s.brows*0.55) }
@@ -134,10 +134,10 @@ final class ImagePipeline {
         let m = mask.applyingFilter("CIColorMatrix",parameters:["inputRVector":CIVector(x:amount,y:0,z:0,w:0),"inputGVector":CIVector(x:0,y:amount,z:0,w:0),"inputBVector":CIVector(x:0,y:0,z:amount,w:0)])
         return front.applyingFilter("CIBlendWithMask",parameters:[kCIInputBackgroundImageKey:back,kCIInputMaskImageKey:m]).cropped(to:back.extent)
     }
-    private func tint(_ image: CIImage, mask: CIImage, rgb: (CGFloat,CGFloat,CGFloat), amount: Double) -> CIImage {
+    private func tint(_ image: CIImage, mask: CIImage, rgb: (CGFloat,CGFloat,CGFloat), amount: Double, mode: String = "CISoftLightBlendMode") -> CIImage {
         // Soft-light retains luminance and lip/skin texture.
         let solid = CIImage(color:CIColor(red:rgb.0,green:rgb.1,blue:rgb.2)).cropped(to:image.extent)
-        let colored = solid.applyingFilter("CISoftLightBlendMode",parameters:[kCIInputBackgroundImageKey:image])
+        let colored = solid.applyingFilter(mode,parameters:[kCIInputBackgroundImageKey:image])
         return blend(colored,over:image,mask:mask,amount:amount)
     }
     private func geometry(_ input: CIImage, face f: FaceGeometry, settings s: EditSettings) throws -> CIImage {
@@ -156,15 +156,15 @@ final class ImagePipeline {
             warpCount += 1
             if warpCount % 4 == 0 { out = try materialize(out) }
         }
-        try apply(CGPoint(x:b.midX,y:b.midY),b.width*0.65,b.height*0.65,s.faceWidth*0.14)
+        try apply(CGPoint(x:b.midX,y:b.midY),b.width*0.65,b.height*0.65,s.faceWidth*0.32)
         try apply(CGPoint(x:b.midX,y:b.minY+b.height*0.12),b.width*0.38,b.height*0.28,0,0,CGFloat(s.chin)*b.height*0.035)
         for eye in [f.leftEye,f.rightEye] {
             guard let p = FaceGeometry.center(eye) else { continue }
-            try apply(CGPoint(x:p.x,y:p.y-b.height*0.2),b.width*0.28,b.height*0.24,s.cheeks*0.16)
+            try apply(CGPoint(x:p.x,y:p.y-b.height*0.2),b.width*0.28,b.height*0.24,s.cheeks*0.24)
             try apply(p,b.width*0.21,b.height*0.16,-s.eyes*0.22,-s.eyes*0.22)
         }
         try apply(CGPoint(x:b.midX,y:b.midY),b.width*0.6,b.height*0.65,0,s.faceHeight*0.12)
-        try apply(CGPoint(x:b.midX,y:b.minY+b.height*0.2),b.width*0.5,b.height*0.3,s.jaw*0.15)
+        try apply(CGPoint(x:b.midX,y:b.minY+b.height*0.2),b.width*0.5,b.height*0.3,s.jaw*0.25)
         try apply(CGPoint(x:b.midX,y:b.maxY-b.height*0.08),b.width*0.45,b.height*0.23,0,s.forehead*0.2)
         for eye in [f.leftEye,f.rightEye] {
             guard let p = FaceGeometry.center(eye) else { continue }

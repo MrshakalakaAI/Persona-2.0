@@ -54,22 +54,33 @@ struct PortraitControls: View {
 struct BeautyLooksPanel: View {
     @ObservedObject var model: EditorModel
     var body: some View {
-        VStack(alignment:.leading,spacing:16) {
-            Text("Красота в одно касание").font(.headline)
-            Text("Локальные образы: кожа, взгляд, губы и мягкая геометрия. Настройки можно дополнить вручную.").font(.caption).foregroundStyle(.secondary)
+        VStack(alignment:.leading,spacing:14) {
+            HStack {
+                Text(model.settings.beautyLook == .none ? "Выбери образ" : model.settings.beautyLook.rawValue).font(.headline)
+                Spacer()
+                Text(String(format:"%.0f%%",model.settings.beautyAmount*100)).font(.subheadline.monospacedDigit())
+            }
+            Slider(value:$model.settings.beautyAmount,in:0...1,onEditingChanged:{ active in if active { model.beginEdit() } else { model.endEdit() } })
+                .disabled(model.settings.beautyLook == .none).accessibilityLabel("Сила образа")
+            Text(model.settings.beautyLook == .none ? "Нажми на образ ниже — затем меняй его силу." : "Удерживай «до / после» на фотографии для сравнения.")
+                .font(.caption).foregroundStyle(.secondary)
             LazyVGrid(columns:[GridItem(.adaptive(minimum:110))],spacing:10) {
                 ForEach(BeautyLook.allCases) { look in
-                    Button { model.change { $0.beautyLook = look } } label: {
+                    Button {
+                        model.change {
+                            $0.beautyLook = look
+                            $0.makeupColor = look.recipe.makeupColor
+                            if $0.beautyAmount == 0 && look != .none { $0.beautyAmount = 1 }
+                        }
+                    } label: {
                         VStack(spacing:8) {
                             Image(systemName:look.icon).font(.title2)
                             Text(look.rawValue).font(.caption.weight(.medium))
-                        }.frame(maxWidth:.infinity,minHeight:76)
+                        }.frame(maxWidth:.infinity,minHeight:68)
                             .background(model.settings.beautyLook == look ? Color.pink.opacity(0.2) : .white.opacity(0.05),in:RoundedRectangle(cornerRadius:16))
                     }.accessibilityIdentifier("look_\(look.id)")
                 }
             }
-            HStack { Text("Сила образа"); Spacer(); Text(String(format:"%.0f%%",model.settings.beautyAmount*100)).monospacedDigit() }.font(.subheadline)
-            Slider(value:$model.settings.beautyAmount,in:0...1,onEditingChanged:{ active in if active { model.beginEdit() } else { model.endEdit() } }).accessibilityLabel("Сила образа")
         }
     }
 }

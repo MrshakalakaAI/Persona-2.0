@@ -10,6 +10,8 @@ final class EditorUITests: XCTestCase {
         app.scrollViews["editorTools"].swipeUp()
         XCTAssertTrue(studio.waitForExistence(timeout:30))
         studio.tap()
+        let applied = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label CONTAINS %@","Применён образ «Студия»"),object:app.staticTexts["status"])
+        XCTAssertEqual(XCTWaiter.wait(for:[applied],timeout:45),.completed)
         let undo = app.buttons["Отменить"]
         XCTAssertTrue(undo.isEnabled)
         undo.tap()
