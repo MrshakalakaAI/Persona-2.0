@@ -93,3 +93,9 @@ Commit `4d135364f9da1ff22dcc9eb8a4e5d2293060f759`, Actions `43229251949`: SUCCES
 Источники: https://persona.camera/ , https://persona.camera/video-calls/ , https://apps.apple.com/us/app/persona-beauty-camera/id1561622206 , https://developer.apple.com/library/archive/documentation/GraphicsImaging/Reference/CoreImageFilterReference/ . Следующий шаг — обязательные macOS build/tests, проверка результата и публикация только после успешного CI.
 
 Первый 1.3 run 43245479432 около десяти минут ожидал Intel runner без начала setup. Workflow перенесён на стандартный Apple Silicon macos-15, бесплатный для public repo по официальной таблице https://docs.github.com/en/actions/reference/runners/github-hosted-runners . Увеличенные runners, Actions artifact storage и платные API не добавлены. Подписи миниатюр уточняют, что это исходник при 100%, а большой preview учитывает все правки.
+
+### Контрольная точка: очередь macOS
+
+Исходный commit 1.3: `bf5bc039e5a4130d19025734a23fd55042f52ecc`. После смены стандартного runner: `9d4966e43ebead4c67cdab63d842ef91aab362bb`. Текущий run `43247160036`, job `131282811865`, метка `macos-15` (Apple Silicon). На 12 ноября 2026, 15:30 UTC (18:30 МСК) статус queued, runner_name пустой, steps пустой. Это ожидание выделения машины, а не зависание теста или ошибка компиляции. Intel run `43245479432` отменён новой ревизией ещё до setup. Дальнейшие переключения runner без новой причины не нужны.
+
+Точный порядок продолжения: дождаться текущего run; при ошибке получить лог job и исправить конкретную причину; после SUCCESS проверить 29 unit/integration и 2 UI cases (ожидаемое число, не результат), загрузить release build-19 или фактический новый tag, сверить checksum/Info.plist/ZIP/ARM64/unsigned, просмотреть PNG результатов фотофильтров из xcresult и UI. Только затем обновить RELEASE_REPORT.md и статус README на проверенную 1.3. До этого не выдавать build-17 за обновление фильтров.

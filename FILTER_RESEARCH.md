@@ -35,3 +35,9 @@
 - https://developer.apple.com/library/archive/documentation/GraphicsImaging/Reference/CoreImageFilterReference/ — CIToneCurve, CIVibrance, CIBloom.
 
 Apple документирует vibrance как коррекцию насыщенности с сохранением приятных оттенков кожи; это полезная основа, но не гарантия сохранения цвета при последующих художественных операциях. Используемые API доступны раньше минимального iOS 17. CIColorKernel API устаревший, как и существующие локальные ядра проекта; его компиляция проверяется тестом.
+
+## Следующая содержательная ступень: нейронная маска кожи
+
+Подтверждён кандидат Google MediaPipe SelfieMulticlass 256×256: официально выдаёт шесть классов (фон, волосы, кожа тела, кожа лица, одежда, прочее). В официальной Model Card Multiclass Segmentation явно указана Apache License 2.0. Это может заменить приблизительный цветовой gate нейронной сегментацией, но само по себе не создаёт ретушь или «омоложение как в Persona».
+
+Источники: https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter?tab=iOS и https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Multiclass%20Segmentation.pdf . Model card прочитана через поисковый сервис; модель и SDK не загружены и не включены в 1.3. До включения нужны проверка конкретного файла/лицензии, iOS-интеграции, качества маски и памяти/скорости на iPhone. Опубликованный benchmark Google для Pixel 6 не переносится на iPhone. Увеличение размера IPA без работающего алгоритма не является улучшением.
