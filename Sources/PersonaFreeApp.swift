@@ -3,6 +3,7 @@ import PhotosUI
 import CoreImage
 import CoreImage.CIFilterBuiltins
 import UIKit
+import Photos
 
 @main struct PersonaFreeApp: App {
     var body: some Scene { WindowGroup { EditorView() } }
@@ -19,6 +20,7 @@ struct EditorView: View {
     @State private var sharpness = 0.0
     @State private var smoothing = 0.0
     @State private var status = ""
+    @State private var compare = false
     private let context = CIContext()
     private let ink = Color(red: 0.96, green: 0.79, blue: 0.85)
 
@@ -29,7 +31,7 @@ struct EditorView: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 24).fill(Color.white.opacity(0.07))
                         if let preview {
-                            Image(uiImage: preview).resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 20)).padding(8)
+                            Image(uiImage: (compare ? original : preview) ?? preview).resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 20)).padding(8)
                         } else {
                             VStack(spacing: 12) {
                                 Image(systemName: "person.crop.square").font(.system(size: 54)).foregroundStyle(ink)
@@ -43,6 +45,7 @@ struct EditorView: View {
                             .frame(maxWidth: .infinity).padding(14).background(ink, in: RoundedRectangle(cornerRadius: 15)).foregroundStyle(.black).fontWeight(.semibold)
                     }
                     if original != nil {
+                        Button(compare ? "Показать результат" : "Сравнить с оригиналом") { compare.toggle() }.tint(ink)
                         VStack(alignment: .leading, spacing: 16) {
                             Text("СТУДИЯ РЕТУШИ").font(.caption).tracking(2).foregroundStyle(ink)
                             control("Смягчение изображения", value: $smoothing, range: 0...1)
@@ -63,7 +66,7 @@ struct EditorView: View {
             }
             .background(Color(red: 0.075, green: 0.07, blue: 0.10))
             .foregroundStyle(.white)
-            .navigationTitle("Beauty Studio")
+            .navigationTitle("personaж")
             .toolbarColorScheme(.dark, for: .navigationBar)
             .onChange(of: selection) { _, newValue in
                 Task {
@@ -123,7 +126,20 @@ struct EditorView: View {
     }
     private func save() {
         guard let preview else { return }
-        UIImageWriteToSavedPhotosAlbum(preview, nil, nil, nil)
-        status = "Отправлено в Фото. Проверь разрешение на сохранение."
+        guard let data = preview.jpegData(compressionQuality: 0.96) else { status = "Ошибка обработки"; return }
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { authorization in
+            guard authorization == .authorized || authorization == .limited else {
+                DispatchQueue.main.async { status = "Разреши сохранение в настройках iPhone" }
+                return
+            }
+            PHPhotoLibrary.shared().performChanges({
+                let request = PHAssetCreationRequest.forAsset()
+                request.addResource(with: .photo, data: data, options: nil)
+            }, completionHandler: { success, error in
+                DispatchQueue.main.async {
+                    status = success ? "Фотография сохранена" : (error?.localizedDescription ?? "Ошибка сохранения")
+                }
+            })
+        }
     }
 }
