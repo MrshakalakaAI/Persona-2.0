@@ -1,0 +1,7 @@
+DemoPortrait.jpg: portrait of astronaut Eileen Collins, NASA, public domain.
+Source: scikit-image data/astronaut.png, tag v0.19.3, converted to JPEG locally.
+https://github.com/scikit-image/scikit-image/blob/v0.19.3/skimage/data/astronaut.png
+https://scikit-image.org/docs/stable/api/skimage.data.html#skimage.data.astronaut
+The scikit-image documentation identifies this photograph as public domain.
+Used only as an optional editor example and an automated vision test fixture.
+No endorsement by NASA or Eileen Collins is implied.

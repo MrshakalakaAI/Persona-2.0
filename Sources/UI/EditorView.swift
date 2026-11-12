@@ -4,18 +4,23 @@ import AVKit
 import AVFoundation
 
 private enum ToolCategory: String, CaseIterable, Identifiable {
-    case skin = "Кожа", face = "Лицо", makeup = "Макияж", filters = "Фильтры", light = "Свет", crop = "Кадр", video = "Видео"
+    case beauty = "Красота", skin = "Кожа", face = "Лицо", eyes = "Глаза", nose = "Нос", mouth = "Улыбка", makeup = "Макияж", brush = "Кисть", filters = "Фильтры", light = "Свет", crop = "Кадр", video = "Видео"
     var id: String { rawValue }
     var icon: String {
-        switch self { case .skin:return "sparkles"; case .face:return "face.smiling"; case .makeup:return "paintbrush.pointed"; case .filters:return "camera.filters"; case .light:return "sun.max"; case .crop:return "crop.rotate"; case .video:return "video" }
+        switch self { case .beauty:return "wand.and.stars";case .eyes:return "eye";case .nose:return "triangle";case .mouth:return "mouth";case .brush:return "bandage";case .skin:return "sparkles"; case .face:return "face.smiling"; case .makeup:return "paintbrush.pointed"; case .filters:return "camera.filters"; case .light:return "sun.max"; case .crop:return "crop.rotate"; case .video:return "video" }
     }
-    var needsFace: Bool { self == .skin || self == .face || self == .makeup }
+    var needsFace: Bool { [ToolCategory.beauty,.skin,.face,.eyes,.nose,.mouth,.makeup].contains(self) }
 }
 
 struct EditorView: View {
     @StateObject private var model = EditorModel()
     @State private var selection: PhotosPickerItem?
-    @State private var category: ToolCategory = .skin
+    @State private var category: ToolCategory = .beauty
+    @State private var brushMode: BrushMode = .heal
+    @State private var brushRadius = 0.035
+    @State private var brushStrength = 1.0
+    @State private var painting = false
+    @State private var lastBrushPoint: CGPoint?
     @State private var camera = false
     @State private var comparing = false
     @State private var showInfo = false
@@ -40,10 +45,18 @@ struct EditorView: View {
                 ScrollView {
                     VStack(alignment:.leading,spacing:19) {
                         if !model.hasMedia { welcome }
-                        else if category.needsFace && (model.isVideo || model.faceCount == 0) {
-                            Label(model.isVideo ? "Ретушь лица доступна только для фото" : "Лицо не найдено",systemImage:"face.dashed").font(.headline)
-                            Text("Выбери чёткую фотографию анфас без перекрытия лица. Для текущего файла доступны свет, фильтры и кадрирование.").font(.subheadline).foregroundStyle(.secondary)
-                        } else { controls }
+                        else if category.needsFace && (model.isVideo ? !model.settings.videoRetouch : model.faceCount == 0) {
+                            Label(model.isVideo ? "Включи ретушь видео" : "Лицо не найдено",systemImage:"face.dashed").font(.headline)
+                            Text(model.isVideo ? "В разделе «Видео» включи ретушь. Обработка каждого кадра выполняется на устройстве; экспорт ограничен 1280 px." : "Выбери чёткую фотографию анфас без перекрытия лица. Для текущего файла доступны свет, фильтры и кадрирование.").font(.subheadline).foregroundStyle(.secondary)
+                        } else {
+                            if model.faceCount > 1 && category.needsFace {
+                                Picker("Лицо слева направо",selection:Binding(get:{model.settings.selectedFace ?? -1},set:{ index in model.change { $0.selectedFace = index < 0 ? nil : index } })) {
+                                    Text("Все лица").tag(-1)
+                                    ForEach(0..<model.faceCount,id:\.self) { Text("Лицо \($0+1)").tag($0) }
+                                }.pickerStyle(.menu)
+                            }
+                            controls
+                        }
                     }.padding(20)
                 }.scrollIndicators(.hidden)
                 importBar
@@ -51,7 +64,11 @@ struct EditorView: View {
             .background(background)
             .tint(accent)
             .disabled(model.busy)
-            .overlay { if model.busy { Color.clear.allowsHitTesting(false) } }
+            .overlay(alignment:.top) {
+                if model.busy && model.isVideo {
+                    Button("Отменить экспорт") { model.cancelExport() }.buttonStyle(.borderedProminent).padding(.top,60)
+                }
+            }
         }
         .task {
             #if DEBUG
@@ -81,7 +98,7 @@ struct EditorView: View {
                         await model.loadVideo(video.url); category = .video
                     } else {
                         guard let data = try await item.loadTransferable(type:Data.self) else { throw ProcessingError(message:"Не удалось загрузить фотографию") }
-                        await model.loadPhoto(data); category = .skin
+                        await model.loadPhoto(data); category = .beauty
                     }
                 } catch { model.message = error.localizedDescription }
                 selection = nil
@@ -107,8 +124,23 @@ struct EditorView: View {
             if let player = model.player {
                 VideoPlayer(player:player).clipShape(RoundedRectangle(cornerRadius:26))
             } else if let image = comparing ? model.original : model.preview {
-                Image(uiImage:image).resizable().scaledToFit().padding(4)
-                    .accessibilityIdentifier("photoPreview").accessibilityLabel("Предпросмотр фотографии")
+                GeometryReader { proxy in
+                    let scale = min(proxy.size.width/image.size.width,proxy.size.height/image.size.height)
+                    let width = image.size.width*scale, height = image.size.height*scale
+                    ZStack {
+                        Image(uiImage:image).resizable().scaledToFit()
+                            .accessibilityIdentifier("photoPreview").accessibilityLabel("Предпросмотр фотографии")
+                        if category == .brush && !comparing {
+                            Color.clear.contentShape(Rectangle()).gesture(DragGesture(minimumDistance:0).onChanged { value in
+                                let unit = CGPoint(x:min(1,max(0,value.location.x/width)),y:min(1,max(0,value.location.y/height)))
+                                if !painting { model.beginEdit(); painting = true; lastBrushPoint = nil }
+                                if let last = lastBrushPoint, hypot(unit.x-last.x,unit.y-last.y) < brushRadius*0.45 { return }
+                                model.addDab(unit:unit,radius:brushRadius,strength:brushStrength,mode:brushMode)
+                                lastBrushPoint = unit
+                            }.onEnded { _ in model.endEdit(); painting = false; lastBrushPoint = nil })
+                        }
+                    }.frame(width:width,height:height).position(x:proxy.size.width/2,y:proxy.size.height/2)
+                }.padding(4)
             } else {
                 VStack(spacing:18) {
                     ZStack {
@@ -147,7 +179,7 @@ struct EditorView: View {
                     }.buttonStyle(.plain).accessibilityIdentifier("tab_\(tool.id)")
                 }
             }.padding(.horizontal,16).padding(.vertical,8)
-        }
+        }.accessibilityIdentifier("toolTabs")
     }
     private var welcome: some View {
         VStack(alignment:.leading,spacing:9) {
@@ -157,35 +189,29 @@ struct EditorView: View {
     }
     @ViewBuilder private var controls: some View {
         switch category {
-        case .skin:
-            title("Естественная текстура","Мягкая обработка по контуру лица с исключением глаз, бровей и губ.")
-            slider("Разглаживание",\.smoothing)
-            slider("Мелкие неровности",\.blemishes)
-            slider("Уменьшение красноты",\.redness)
-            slider("Тон кожи",\.skinTone,range:-1...1)
-            slider("Свет под глазами",\.underEyes)
-            slider("Смягчение линий лба",\.wrinkles)
-        case .face:
-            title("Тонкая геометрия","Небольшие локальные изменения. Сильный профиль и перекрытые лица снижают точность.")
-            slider("Ширина лица",\.faceWidth,range:-1...1)
-            slider("Подбородок",\.chin,range:-1...1)
-            slider("Скулы",\.cheeks,range:-1...1)
-            slider("Ширина носа",\.nose,range:-1...1)
-            slider("Размер глаз",\.eyes,range:-1...1)
-            slider("Объём губ",\.lips,range:-1...1)
-            slider("Изгиб бровей",\.browShape,range:-1...1)
+        case .beauty:
+            BeautyLooksPanel(model:model)
+        case .skin,.face,.eyes,.nose,.mouth:
+            PortraitControls(model:model,group:category.rawValue).id(category)
         case .makeup:
-            title("Твой оттенок","Макияж следует точкам лица и сохраняет фактуру.")
             HStack(spacing:18) {
                 ForEach(0..<5) { index in
                     Button { model.change { $0.makeupColor = index } } label: {
                         Circle().fill([Color(red:0.72,green:0.13,blue:0.28),Color(red:0.65,green:0.26,blue:0.29),Color(red:0.54,green:0.15,blue:0.38),Color(red:0.85,green:0.35,blue:0.29),Color(red:0.45,green:0.25,blue:0.23)][index])
-                            .frame(width:36,height:36).padding(4).overlay(Circle().stroke(model.settings.makeupColor == index ? accent : .clear,lineWidth:2))
+                            .frame(width:32,height:32).padding(4).overlay(Circle().stroke(model.settings.makeupColor == index ? accent : .clear,lineWidth:2))
                     }.accessibilityLabel(["Роза","Нюд","Слива","Коралл","Какао"][index])
                 }
             }
-            slider("Помада",\.lipstick); slider("Румяна",\.blush)
-            slider("Тени",\.eyeshadow); slider("Подводка",\.eyeliner); slider("Брови",\.brows)
+            PortraitControls(model:model,group:category.rawValue)
+        case .brush:
+            if model.isVideo { title("Кисти доступны для фото", "Рисуй по изображению после выбора инструмента.") }
+            else {
+                title("Точечная ретушь", "Проведи по фото. «Убрать пятно» переносит соседнюю текстуру с мягкими краями. До 80 точек; один жест — один шаг отмены.")
+                Picker("Кисть",selection:$brushMode) { ForEach(BrushMode.allCases) { Text($0.rawValue).tag($0) } }.pickerStyle(.menu)
+                HStack { Text("Размер"); Slider(value:$brushRadius,in:0.01...0.1); Text(String(format:"%.0f",brushRadius*100)) }
+                HStack { Text("Сила"); Slider(value:$brushStrength,in:0.1...1); Text(String(format:"%.0f%%",brushStrength*100)) }
+                Button("Очистить точки (\(model.settings.dabs.count)/80)") { model.change { $0.dabs = [] } }.disabled(model.settings.dabs.isEmpty)
+            }
         case .filters:
             title("Настроение кадра","Восемь вариантов с регулируемой силой.")
             LazyVGrid(columns:[GridItem(.adaptive(minimum:95))],spacing:10) {
@@ -214,7 +240,8 @@ struct EditorView: View {
             slider("Сдвиг по вертикали",\.cropY,range:-1...1)
         case .video:
             if model.isVideo {
-                title("Видеостудия","Исходный звук сохраняется. Ретушь лица для видео недоступна.")
+                title("Видеостудия","Исходный звук сохраняется. Обработка лица выполняется покадрово, не в реальном времени. При ретуши экспорт до 1280 px; возможны колебания точек лица.")
+                Toggle("Ретушь видео",isOn:Binding(get:{model.settings.videoRetouch},set:{ value in model.change { $0.videoRetouch = value } }))
                 Picker("Формат",selection:Binding(get:{model.settings.aspect},set:{ value in model.change { $0.aspect = value } })) {
                     ForEach(CropAspect.allCases) { Text($0.rawValue).tag($0) }
                 }
@@ -267,7 +294,7 @@ struct EditorView: View {
                     Label("Сохранить",systemImage:"square.and.arrow.down").font(.subheadline.weight(.semibold)).padding(.horizontal,16).frame(height:46)
                         .foregroundStyle(.black).background(LinearGradient(colors:[accent,Color(red:0.73,green:0.61,blue:0.94)],startPoint:.leading,endPoint:.trailing),in:Capsule())
                 }.accessibilityIdentifier("saveMedia")
-            } else { Spacer(); Text("Без подписки").font(.caption).foregroundStyle(.secondary) }
+            } else { Spacer(); Button("Пример") { Task { if let url = Bundle.main.url(forResource:"DemoPortrait",withExtension:"jpg"), let data = try? Data(contentsOf:url) { await model.loadPhoto(data) } } }.font(.caption) }
         }.padding(.horizontal,18).padding(.vertical,10).background(.white.opacity(0.035))
     }
     private func openCamera() {
@@ -288,7 +315,7 @@ struct EditorView: View {
                     Text("Ретушь").font(.headline)
                     Text("Разглаживание использует шумоподавление внутри маски лица. Мелкие неровности подавляются медианным фильтром; глубокие дефекты и морщины автоматически не восстанавливаются. Геометрия имеет ограниченную силу, но у границы лица возможны изменения фона.")
                     Text("Экспорт").font(.headline)
-                    Text("Фото: JPEG, sRGB, длинная сторона до 4096 пикселей, без переноса GPS. Видео: MP4, исходный звук, цвет и кадрирование. Ретушь и макияж в видео не применяются. HDR-видео может быть преобразовано в SDR.")
+                    Text("Фото: JPEG sRGB до 4096 px, без GPS. Видео: MP4 с исходным звуком. Покадровая ретушь включается отдельно, ограничивает экспорт 1280 px и может быть медленной. Точки лица могут колебаться. HDR может перейти в SDR. Пример: фотография Eileen Collins, NASA / scikit-image, public domain; используется для демонстрации, без одобрения приложения изображённым человеком.")
                     Text("Конфиденциальность").font(.headline)
                     Text("Файлы обрабатываются на устройстве. Приложение не содержит сетевых сервисов, аналитики и рекламы. Импортированные видео временно копируются в песочницу приложения.")
                 }.font(.subheadline).padding(24)

@@ -1,6 +1,35 @@
 import Foundation
 
 struct EditSettings: Equatable, Codable {
+    var videoRetouch = false
+    var beautyLook: BeautyLook = .none
+    var beautyAmount = 0.7
+    var selectedFace: Int? = nil
+    var texture = 0.65
+    var skinEvenness = 0.0
+    var skinGlow = 0.0
+    var teethWhitening = 0.0
+    var eyeLight = 0.0
+    var eyeContrast = 0.0
+    var eyeSaturation = 0.0
+    var eyeWidth = 0.0
+    var eyeHeight = 0.0
+    var eyeDistance = 0.0
+    var eyeLift = 0.0
+    var irisSize = 0.0
+    var noseLength = 0.0
+    var noseTip = 0.0
+    var noseBridge = 0.0
+    var lipsWidth = 0.0
+    var lipsPosition = 0.0
+    var smile = 0.0
+    var lipGloss = 0.0
+    var jaw = 0.0
+    var forehead = 0.0
+    var faceHeight = 0.0
+    var browDistance = 0.0
+    var browTilt = 0.0
+    var dabs: [RetouchDab] = []
     var exposure = 0.0
     var brightness = 0.0
     var contrast = 1.0

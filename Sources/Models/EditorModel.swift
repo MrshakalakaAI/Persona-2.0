@@ -7,11 +7,11 @@ actor PhotoWorker {
     private var data: Data?
     private var source: CIImage?
     private var faces: [FaceGeometry] = []
-    func load(_ data: Data) throws -> (UIImage,Int) {
+    func load(_ data: Data) throws -> (UIImage,[CGRect]) {
         let image = try MediaIO.decode(data,maxDimension:1280)
         let detected = try FaceAnalyzer().detect(in:image)
         self.data = data; source = image; faces = detected
-        return (try pipeline.bitmap(image),detected.count)
+        return (try pipeline.bitmap(image),detected.map { CGRect(x:$0.bounds.minX/image.extent.width,y:$0.bounds.minY/image.extent.height,width:$0.bounds.width/image.extent.width,height:$0.bounds.height/image.extent.height) })
     }
     func clear() { data = nil; source = nil; faces = [] }
     func render(_ settings: EditSettings) throws -> UIImage? {
@@ -34,6 +34,7 @@ actor PhotoWorker {
     @Published var original: UIImage?
     @Published var preview: UIImage?
     @Published var faceCount = 0
+    @Published var faceRects: [CGRect] = []
     @Published var busy = false
     @Published var rendering = false
     @Published var message = ""
@@ -66,8 +67,9 @@ actor PhotoWorker {
         busy = true; message = "Анализ фотографии…"; renderTask?.cancel()
         defer { busy = false }
         do {
-            let (image,count) = try await photo.load(data)
-            clearVideo(); original = image; preview = image; faceCount = count
+            let (image,rects) = try await photo.load(data)
+            let count = rects.count
+            clearVideo(); original = image; preview = image; faceCount = count; faceRects = rects
             settings = EditSettings(); history = EditHistory()
             message = count == 0 ? "Лицо не найдено. Доступны фильтры, свет и кадрирование." : "Лиц найдено: \(count). Обработка выполняется на iPhone."
         } catch { message = error.localizedDescription }
@@ -80,10 +82,10 @@ actor PhotoWorker {
             let asset = AVURLAsset(url:url)
             guard !(try await asset.loadTracks(withMediaType:.video)).isEmpty else { throw ProcessingError(message:"Не удалось прочитать видео") }
             await photo.clear()
-            clearVideo(); original = nil; preview = nil; faceCount = 0
+            clearVideo(); original = nil; preview = nil; faceCount = 0; faceRects = []
             settings = EditSettings(); history = EditHistory(); videoURL = url
             player = AVPlayer(playerItem:AVPlayerItem(asset:asset))
-            message = "Видео: цвет, фильтры и кадрирование. Ретушь лица для видео пока недоступна."
+            message = "Видео: цвет и кадрирование. Для обработки лица включи «Ретушь видео»; экспорт до 1280 px."
         } catch { try? FileManager.default.removeItem(at:url); message = error.localizedDescription }
     }
     private func clearVideo() {
@@ -91,6 +93,7 @@ actor PhotoWorker {
         if let videoURL { try? FileManager.default.removeItem(at:videoURL) }
         videoURL = nil
     }
+    func cancelExport() { video.cancelExport() }
     func scheduleRender() {
         renderTask?.cancel()
         guard hasMedia, !busy else { return }
@@ -115,6 +118,14 @@ actor PhotoWorker {
                 }
             } catch is CancellationError {} catch { self?.message = error.localizedDescription }
         }
+    }
+    func addDab(unit: CGPoint, radius: Double, strength: Double, mode: BrushMode) {
+        guard let original, settings.dabs.count < 80 else { return }
+        let size = original.size
+        let plan = CropPlan.make(extent:CGRect(origin:.zero,size:size),settings:settings)
+        let source = plan.sourcePoint(displayUnit:unit,source:size)
+        let outputRadius = radius*Double(min(plan.output.width,plan.output.height))/Double(min(size.width,size.height))
+        settings.dabs.append(RetouchDab(x:Double(source.x),y:Double(source.y),radius:outputRadius,strength:strength,mode:mode))
     }
     func save() async {
         guard hasMedia, !busy else { return }

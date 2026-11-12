@@ -17,6 +17,9 @@ struct ImportedVideo: Transferable {
 
 final class VideoEngine {
     let pipeline = ImagePipeline()
+    private let sessionLock = NSLock()
+    private var currentExport: AVAssetExportSession?
+    func cancelExport() { sessionLock.withLock { currentExport }?.cancelExport() }
     func export(url: URL, settings: EditSettings, progress: @escaping @Sendable (Float) -> Void) async throws -> URL {
         let asset = AVURLAsset(url:url)
         let tracks = try await asset.loadTracks(withMediaType:.video)
@@ -24,6 +27,8 @@ final class VideoEngine {
         // AVVideoComposition filtering must preserve renderSize. Crop is handled by
         // fitting the cropped CI image into a matching explicit composition size.
         guard let session = AVAssetExportSession(asset:asset,presetName:AVAssetExportPresetHighestQuality) else { throw ProcessingError(message:"Формат видео не поддерживается") }
+        sessionLock.withLock { currentExport = session }
+        defer { sessionLock.withLock { currentExport = nil } }
         let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mp4")
         session.outputURL = output; session.outputFileType = .mp4
         session.shouldOptimizeForNetworkUse = true
@@ -51,12 +56,22 @@ final class VideoEngine {
         let oriented = CGSize(width:abs(rect.width),height:abs(rect.height))
         let blank = CIImage(color:.black).cropped(to:CGRect(origin:.zero,size:oriented))
         let cropped = pipeline.crop(blank,settings:settings).extent
-        let width = max(2,Int(cropped.width)/2*2), height = max(2,Int(cropped.height)/2*2)
+        let cap = settings.videoRetouch ? min(1,1280/max(cropped.width,cropped.height)) : 1
+        let width = max(2,Int(cropped.width*cap)/2*2), height = max(2,Int(cropped.height*cap)/2*2)
         let renderSize = CGSize(width:width,height:height)
+        let analyzer = VideoFaceAnalyzer()
         let composition = AVMutableVideoComposition(asset:asset) { [pipeline] request in
-            let output = pipeline.crop(pipeline.color(request.sourceImage,settings:settings),settings:settings)
+            do {
+            var source = request.sourceImage
+            if settings.videoRetouch {
+                let scale = min(1,1280/max(source.extent.width,source.extent.height))
+                source = source.transformed(by:CGAffineTransform(scaleX:scale,y:scale))
+            }
+            let faces = settings.videoRetouch ? try analyzer.faces(in:source) : []
+            let output = settings.videoRetouch ? try pipeline.render(source,settings:settings,faces:faces) : pipeline.crop(pipeline.color(source,settings:settings),settings:settings)
             let scaled = output.transformed(by:CGAffineTransform(scaleX:CGFloat(width)/output.extent.width,y:CGFloat(height)/output.extent.height))
             request.finish(with:scaled.cropped(to:CGRect(origin:.zero,size:renderSize)),context:pipeline.context)
+            } catch { request.finish(with:error) }
         }
         composition.renderSize = renderSize
         return composition

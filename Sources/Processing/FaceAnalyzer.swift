@@ -35,6 +35,6 @@ struct FaceAnalyzer {
                                 contour:points(l.faceContour),leftEye:points(l.leftEye),rightEye:points(l.rightEye),
                                 leftBrow:points(l.leftEyebrow),rightBrow:points(l.rightEyebrow),outerLips:points(l.outerLips),
                                 innerLips:points(l.innerLips),nose:points(l.nose))
-        }
+        }.sorted { $0.bounds.midX < $1.bounds.midX }
     }
 }

@@ -43,6 +43,12 @@ struct FaceMasks {
             }
         }
     }
+    func eyes(_ f: FaceGeometry) -> CIImage {
+        raster(blur:f.bounds.width*0.004) { c in polygon(c,f.leftEye); polygon(c,f.rightEye) }
+    }
+    func teeth(_ f: FaceGeometry) -> CIImage {
+        raster(blur:f.bounds.width*0.003) { c in polygon(c,f.innerLips) }
+    }
     func forehead(_ f: FaceGeometry) -> CIImage {
         raster(blur:f.bounds.width*0.025) { c in
             let b = f.bounds

@@ -10,6 +10,7 @@ struct ProcessingError: LocalizedError {
 
 final class ImagePipeline {
     let context: CIContext
+    private let detail = PortraitDetail()
     private let warp = CIWarpKernel(source: """
     kernel vec2 localWarp(vec2 center, vec2 radius, vec2 scale, vec2 shift) {
         vec2 p = destCoord();
@@ -23,14 +24,16 @@ final class ImagePipeline {
         if let device = MTLCreateSystemDefaultDevice() { context = CIContext(mtlDevice:device,options:[.cacheIntermediates:false]) }
         else { context = CIContext(options:[.cacheIntermediates:false]) }
     }
-    func render(_ image: CIImage, settings s: EditSettings, faces: [FaceGeometry] = [], includeCrop: Bool = true) throws -> CIImage {
+    func render(_ image: CIImage, settings inputSettings: EditSettings, faces: [FaceGeometry] = [], includeCrop: Bool = true) throws -> CIImage {
+        let s = inputSettings.effective()
+        let activeFaces = faces.enumerated().filter { s.selectedFace == nil || s.selectedFace == $0.offset }.map(\.element)
         var out = color(image, settings:s)
         let masks = FaceMasks(extent:image.extent)
-        for f in faces {
-            let skin = masks.skin(f)
+        for f in activeFaces {
+            let skin = detail.skinMask(out,geometric:masks.skin(f))
             if s.smoothing > 0 {
                 let strength = s.smoothing
-                let smooth = out.applyingFilter("CINoiseReduction",parameters:["inputNoiseLevel":0.02+strength*0.07,"inputSharpness":0.5])
+                let smooth = detail.smooth(out,strength:strength,texture:s.texture)
                 out = blend(smooth,over:out,mask:skin,amount:strength*0.85)
             }
             if s.wrinkles > 0 {
@@ -56,6 +59,31 @@ final class ImagePipeline {
                 let light = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:s.underEyes*0.4])
                 out = blend(light,over:out,mask:masks.eyeAreas(f,below:true),amount:0.8)
             }
+            if s.skinEvenness > 0 {
+                let radius = max(2,f.bounds.width*0.02)
+                let even = out.clampedToExtent().applyingFilter("CIGaussianBlur",parameters:[kCIInputRadiusKey:radius]).cropped(to:out.extent)
+                out = blend(even,over:out,mask:skin,amount:s.skinEvenness*0.18)
+            }
+            if s.skinGlow > 0 {
+                let glow = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:s.skinGlow*0.22]).applyingFilter("CIHighlightShadowAdjust",parameters:["inputHighlightAmount":0.8,"inputShadowAmount":0.1])
+                out = blend(glow,over:out,mask:skin,amount:s.skinGlow*0.65)
+            }
+            if s.teethWhitening > 0 {
+                let whitened = out.applyingFilter("CIColorControls",parameters:[kCIInputSaturationKey:0.1]).applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:0.35])
+                out = blend(whitened,over:out,mask:detail.brightMask(out,geometric:masks.teeth(f)),amount:s.teethWhitening*0.85)
+            }
+            if s.eyeLight > 0 {
+                let light = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:0.3])
+                out = blend(light,over:out,mask:detail.brightMask(out,geometric:masks.eyes(f)),amount:s.eyeLight)
+            }
+            if s.eyeContrast > 0 || s.eyeSaturation != 0 {
+                let eyes = out.applyingFilter("CIColorControls",parameters:[kCIInputContrastKey:1+s.eyeContrast*0.35,kCIInputSaturationKey:1+s.eyeSaturation*0.5])
+                out = blend(eyes,over:out,mask:masks.eyes(f),amount:0.8)
+            }
+            if s.lipGloss > 0 {
+                let gloss = out.applyingFilter("CIHighlightShadowAdjust",parameters:["inputHighlightAmount":1,"inputShadowAmount":0.1]).applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:0.25])
+                out = blend(gloss,over:out,mask:masks.lips(f),amount:s.lipGloss)
+            }
             let palette: [(CGFloat,CGFloat,CGFloat)] = [(0.72,0.13,0.28),(0.65,0.26,0.29),(0.54,0.15,0.38),(0.85,0.35,0.29),(0.45,0.25,0.23)]
             let p = palette[min(max(s.makeupColor,0),palette.count-1)]
             if s.lipstick > 0 { out = tint(out,mask:masks.lips(f),rgb:p,amount:s.lipstick*0.7) }
@@ -65,7 +93,8 @@ final class ImagePipeline {
             if s.brows > 0 { out = tint(out,mask:masks.eyebrows(f),rgb:(0.22,0.12,0.10),amount:s.brows*0.55) }
         }
         // Warp after retouch so masks stay attached to the altered features.
-        for f in faces { out = try geometry(out,face:f,settings:s) }
+        for f in activeFaces { out = try geometry(out,face:f,settings:s) }
+        out = applyBrushes(out,dabs:s.dabs)
         return includeCrop ? crop(out,settings:s) : out
     }
     func color(_ input: CIImage, settings s: EditSettings) -> CIImage {
@@ -107,12 +136,12 @@ final class ImagePipeline {
     private func geometry(_ input: CIImage, face f: FaceGeometry, settings s: EditSettings) throws -> CIImage {
         var out = input
         let b = f.bounds
-        func apply(_ center: CGPoint?, _ rx: CGFloat, _ ry: CGFloat, _ sx: Double = 0, _ sy: Double = 0, _ dy: CGFloat = 0) throws {
-            guard let center, sx != 0 || sy != 0 || dy != 0 else { return }
+        func apply(_ center: CGPoint?, _ rx: CGFloat, _ ry: CGFloat, _ sx: Double = 0, _ sy: Double = 0, _ dy: CGFloat = 0, dx: CGFloat = 0) throws {
+            guard let center, sx != 0 || sy != 0 || dy != 0 || dx != 0 else { return }
             guard let warp else { throw ProcessingError(message:"Устройство не поддерживает геометрию Core Image") }
             let radius = CIVector(x:max(1,rx),y:max(1,ry))
             guard let result = warp.apply(extent:out.extent,roiCallback:{ _, r in r.insetBy(dx:-b.width*0.25,dy:-b.height*0.25) },image:out,
-                                          arguments:[CIVector(cgPoint:center),radius,CIVector(x:sx,y:sy),CIVector(x:0,y:dy)]) else {
+                                          arguments:[CIVector(cgPoint:center),radius,CIVector(x:sx,y:sy),CIVector(x:dx,y:dy)]) else {
                 throw ProcessingError(message:"Не удалось обработать геометрию лица")
             }
             out = result
@@ -124,35 +153,64 @@ final class ImagePipeline {
             try apply(CGPoint(x:p.x,y:p.y-b.height*0.2),b.width*0.28,b.height*0.24,s.cheeks*0.16)
             try apply(p,b.width*0.21,b.height*0.16,-s.eyes*0.22,-s.eyes*0.22)
         }
+        try apply(CGPoint(x:b.midX,y:b.midY),b.width*0.6,b.height*0.65,0,s.faceHeight*0.12)
+        try apply(CGPoint(x:b.midX,y:b.minY+b.height*0.2),b.width*0.5,b.height*0.3,s.jaw*0.15)
+        try apply(CGPoint(x:b.midX,y:b.maxY-b.height*0.08),b.width*0.45,b.height*0.23,0,s.forehead*0.2)
+        for eye in [f.leftEye,f.rightEye] {
+            guard let p = FaceGeometry.center(eye) else { continue }
+            let sign: CGFloat = p.x < b.midX ? 1 : -1
+            try apply(p,b.width*0.2,b.height*0.15,-s.eyeWidth*0.2,-s.eyeHeight*0.2)
+            try apply(p,b.width*0.22,b.height*0.18,0,0,-CGFloat(s.eyeLift)*b.height*0.025,dx:sign*CGFloat(s.eyeDistance)*b.width*0.025)
+            try apply(p,b.width*0.065,b.height*0.07,-s.irisSize*0.2,-s.irisSize*0.2)
+        }
+        if let p = FaceGeometry.center(f.nose) {
+            try apply(p,b.width*0.17,b.height*0.25,0,s.noseLength*0.18)
+            try apply(CGPoint(x:p.x,y:p.y+b.height*0.10),b.width*0.12,b.height*0.18,s.noseBridge*0.2)
+            try apply(CGPoint(x:p.x,y:p.y-b.height*0.04),b.width*0.14,b.height*0.12,0,0,-CGFloat(s.noseTip)*b.height*0.025)
+        }
+        if let p = FaceGeometry.center(f.outerLips) {
+            try apply(p,b.width*0.28,b.height*0.15,-s.lipsWidth*0.2,0,-CGFloat(s.lipsPosition)*b.height*0.025)
+            for sign in [CGFloat(-1),CGFloat(1)] {
+                try apply(CGPoint(x:p.x+sign*b.width*0.14,y:p.y),b.width*0.13,b.height*0.12,0,0,-CGFloat(s.smile)*b.height*0.028)
+            }
+        }
         try apply(FaceGeometry.center(f.nose),b.width*0.20,b.height*0.28,s.nose*0.22)
         try apply(FaceGeometry.center(f.outerLips),b.width*0.30,b.height*0.16,-s.lips*0.18,-s.lips*0.18)
         for brow in [f.leftBrow,f.rightBrow] {
             try apply(FaceGeometry.center(brow),b.width*0.23,b.height*0.13,0,0,-CGFloat(s.browShape)*b.height*0.025)
         }
+        for brow in [f.leftBrow,f.rightBrow] {
+            guard let p = FaceGeometry.center(brow) else { continue }
+            let sign: CGFloat = p.x < b.midX ? 1 : -1
+            try apply(p,b.width*0.24,b.height*0.13,0,0,0,dx:sign*CGFloat(s.browDistance)*b.width*0.025)
+            try apply(CGPoint(x:p.x-sign*b.width*0.08,y:p.y),b.width*0.11,b.height*0.1,0,0,-CGFloat(s.browTilt)*b.height*0.025)
+        }
         return out
     }
     func crop(_ input: CIImage, settings s: EditSettings) -> CIImage {
+        let plan = CropPlan.make(extent:input.extent,settings:s)
+        return input.transformed(by:plan.transform).cropped(to:plan.output)
+    }
+    private func applyBrushes(_ input: CIImage, dabs: [RetouchDab]) -> CIImage {
         var out = input
-        let turns = ((s.quarterTurns % 4)+4)%4
-        if turns != 0 { out = out.oriented([CGImagePropertyOrientation.up,.right,.down,.left][turns]) }
-        out = out.transformed(by:CGAffineTransform(translationX:-out.extent.minX,y:-out.extent.minY))
-        let base = out.extent
-        if s.straighten != 0 {
-            let angle = CGFloat(s.straighten)*CGFloat.pi/180
-            let t = CGAffineTransform(translationX:base.midX,y:base.midY).rotated(by:angle).translatedBy(x:-base.midX,y:-base.midY)
-            out = out.transformed(by:t)
-            // Inscribe the original aspect in the rotation, excluding black corners.
-            let factor = 1/(abs(cos(angle))+max(base.width/base.height,base.height/base.width)*abs(sin(angle)))
-            out = out.cropped(to:CGRect(x:base.midX-base.width*factor/2,y:base.midY-base.height*factor/2,width:base.width*factor,height:base.height*factor))
+        let e = input.extent
+        for dab in dabs {
+            let center = CGPoint(x:CGFloat(dab.x)*e.width,y:CGFloat(dab.y)*e.height)
+            let radius = max(2,CGFloat(dab.radius)*min(e.width,e.height))
+            let mask = CIFilter(name:"CIRadialGradient",parameters:["inputCenter":CIVector(cgPoint:center),"inputRadius0":radius*0.5,"inputRadius1":radius,"inputColor0":CIColor.white,"inputColor1":CIColor.black])!.outputImage!.cropped(to:e)
+            let front: CIImage
+            switch dab.mode {
+            case .heal:
+                let direction: CGFloat = center.x+radius*3 < e.maxX ? 1 : -1
+                front = out.clampedToExtent().transformed(by:CGAffineTransform(translationX:-direction*radius*2.4,y:0)).cropped(to:e)
+            case .smooth:
+                front = out.clampedToExtent().applyingFilter("CIGaussianBlur",parameters:[kCIInputRadiusKey:radius*0.25]).cropped(to:e)
+            case .lighten: front = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:0.35])
+            case .darken: front = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:-0.35])
+            }
+            out = blend(front,over:out,mask:mask,amount:dab.strength)
         }
-        let e = out.extent
-        let ratio = CGFloat(s.aspect.ratio ?? Double(e.width/e.height))
-        let w = min(e.width,e.height*ratio)/CGFloat(max(1,s.cropZoom))
-        let h = w/ratio
-        let x = e.minX+(e.width-w)*(CGFloat(s.cropX)+1)/2
-        let y = e.minY+(e.height-h)*(CGFloat(s.cropY)+1)/2
-        out = out.cropped(to:CGRect(x:x,y:y,width:w,height:h).integral.intersection(e))
-        return out.transformed(by:CGAffineTransform(translationX:-out.extent.minX,y:-out.extent.minY))
+        return out
     }
     func bitmap(_ image: CIImage) throws -> UIImage {
         guard let cg = context.createCGImage(image,from:image.extent,format:.RGBA8,colorSpace:CGColorSpace(name:CGColorSpace.sRGB)) else { throw ProcessingError(message:"Недостаточно памяти для изображения") }

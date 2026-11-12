@@ -157,7 +157,7 @@ final class ProcessingTests: XCTestCase {
         mux.outputURL = muxed; mux.outputFileType = .mov
         await withCheckedContinuation { (c: CheckedContinuation<Void,Never>) in mux.exportAsynchronously { c.resume() } }
         XCTAssertEqual(mux.status,.completed)
-        var s = EditSettings(); s.aspect = .story; s.exposure = 0.3; s.filter = .warm
+        var s = EditSettings(); s.aspect = .story; s.exposure = 0.3; s.filter = .warm; s.videoRetouch = true; s.beautyLook = .natural
         let result = try await VideoEngine().export(url:muxed,settings:s,progress:{_ in})
         defer { try? FileManager.default.removeItem(at:result) }
         let output = AVURLAsset(url:result)

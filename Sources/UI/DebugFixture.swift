@@ -4,6 +4,7 @@ import UIKit
 /// Deterministic local image for simulator UI automation. Never included in Release.
 enum DebugFixture {
     static func photo() -> Data {
+        if let url = Bundle.main.url(forResource:"DemoPortrait",withExtension:"jpg"), let data = try? Data(contentsOf:url) { return data }
         let format = UIGraphicsImageRendererFormat(); format.scale = 1
         let image = UIGraphicsImageRenderer(size:CGSize(width:800,height:1100),format:format).image { r in
             let c = r.cgContext
