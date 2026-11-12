@@ -35,3 +35,7 @@ Intel runner успешно выделен. Запуск `43198093289` дошё�
 ### Результат запуска 43198411933
 
 Device Release build: SUCCESS. XCTest: 13/13 PASS, включая все фильтры, ориентацию/декодирование, маски, геометрию с макияжем, JPEG, историю и MP4 9:16 с аудиодорожкой. Сам workflow завершился ошибкой после тестов: simctl screenshot обратился к Shutdown-симулятору, поскольку xcodebuild использовал клон. Исправлено явным запуском выбранного симулятора и отключением parallel testing. Публикация в этом запуске не состоялась.
+
+### Финальный автоматический результат
+
+Коммит `6f334ff00d4a121da550b25f66ecb863e502dd9e`, запуск [43199541666](https://github.com/MrshakalakaAI/Persona-2.0/actions/runs/43199541666) полностью SUCCESS. Device Release build, 14 unit/integration tests и 1 UI test прошли, IPA проверен и опубликован в [build-8](https://github.com/MrshakalakaAI/Persona-2.0/releases/tag/build-8). Скачанный IPA дополнительно проверен локально: checksum/ZIP/ARM64/Info.plist/отсутствие подписи и test bundles — PASS. Снимок интерфейса просмотрен. Полный отчёт и дальнейшие ограничения — `RELEASE_REPORT.md`.
