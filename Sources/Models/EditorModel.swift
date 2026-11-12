@@ -117,6 +117,8 @@ actor PhotoWorker {
                     self.preview = result
                     if snapshot.beautyLook != .none {
                         self.message = "Применён образ «\(snapshot.beautyLook.rawValue)» · \(Int(snapshot.beautyAmount*100))% · Лиц: \(self.faceCount)"
+                    } else {
+                        self.message = "Обработка обновлена · Лиц: \(self.faceCount)"
                     }
                 }
             } catch is CancellationError {} catch { self?.message = error.localizedDescription }
