@@ -71,7 +71,7 @@ struct BeautyLooksPanel: View {
             Text(model.settings.beautyLook.detail)
                 .font(.caption).foregroundStyle(.secondary)
             if model.thumbnailsLoading { ProgressView("Готовлю примеры на твоём фото…").font(.caption) }
-            Text("Образы: 12 вариантов · сила 0–100%").font(.caption).foregroundStyle(.secondary)
+            Text("12 образов · миниатюры на исходном фото при 100%").font(.caption).foregroundStyle(.secondary)
             LazyVGrid(columns:[GridItem(.adaptive(minimum:110))],spacing:10) {
                 ForEach(BeautyLook.allCases) { look in
                     Button { select(look) } label: {

@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    # Standard runner, public repository; no larger runners, caches or billed artifact storage.
-    runs-on: macos-15-intel
+    # Standard Apple Silicon runner, public repository; no larger runners or billed artifact storage.
+    runs-on: macos-15
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4

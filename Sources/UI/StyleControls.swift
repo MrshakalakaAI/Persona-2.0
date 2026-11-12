@@ -13,7 +13,7 @@ struct StyleControls: View {
             Slider(value:$model.settings.filterAmount,in:0...1,onEditingChanged:{ active in
                 if active { model.beginEdit() } else { model.endEdit() }
             }).disabled(model.settings.filter == .natural).accessibilityLabel("Сила фильтра")
-            Text("12 цветовых рецептов + оригинал. Можно сочетать с образом из «Красоты».").font(.caption).foregroundStyle(.secondary)
+            Text("12 рецептов + оригинал. Примеры на исходном фото при 100%; большой кадр показывает все правки.").font(.caption).foregroundStyle(.secondary)
             LazyVGrid(columns:[GridItem(.adaptive(minimum:100))],spacing:10) {
                 ForEach(PhotoStyle.allCases) { style in
                     Button {
