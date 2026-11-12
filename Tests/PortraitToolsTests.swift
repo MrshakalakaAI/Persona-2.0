@@ -38,7 +38,7 @@ final class PortraitToolsTests: XCTestCase {
         pipeline.context.render(skin,toBitmap:&maskPixels,rowBytes:width*4,bounds:roi,format:.RGBA8,colorSpace:CGColorSpace(name:CGColorSpace.sRGB))
         let coverage = stride(from:0,to:maskPixels.count,by:4).reduce(0.0) { $0+Double(maskPixels[$1])/255 }/Double(width*height)
         print("Beauty actual skin mask coverage \(coverage), contour endpoints \(String(describing:face.contour.first)) → \(String(describing:face.contour.last))")
-        XCTAssertGreaterThan(coverage,0.2,"Skin effects must cover actual face pixels")
+        XCTAssertGreaterThan(coverage,0.4,"Skin effects must cover actual face pixels")
         let maskAttachment = XCTAttachment(image:try pipeline.bitmap(skin)); maskAttachment.name = "Beauty actual skin coverage"; maskAttachment.lifetime = .keepAlways; add(maskAttachment)
         func pixels(_ output: CIImage) -> [UInt8] {
             var bytes = [UInt8](repeating:0,count:width*height*4)
@@ -107,6 +107,17 @@ final class PortraitToolsTests: XCTestCase {
     func testMakeupPaletteOverridesLookColor() {
         var settings = EditSettings(); settings.beautyLook = .evening; settings.makeupColor = 3
         XCTAssertEqual(settings.effective().makeupColor,3)
+    }
+    func testSkinEnvelopeDoesNotDependOnPointOrder() {
+        let masks = FaceMasks(extent:CGRect(x:0,y:0,width:100,height:100))
+        let points = [CGPoint(x:10,y:10),CGPoint(x:90,y:90),CGPoint(x:10,y:90),CGPoint(x:90,y:10),CGPoint(x:50,y:50)]
+        let hull = masks.convexHull(points)
+        XCTAssertEqual(hull.count,4)
+        XCTAssertEqual(hull,masks.convexHull(Array(points.reversed())))
+        let image = masks.raster { masks.polygon($0,hull) }
+        var bytes = [UInt8](repeating:0,count:4)
+        pipeline.context.render(image,toBitmap:&bytes,rowBytes:4,bounds:CGRect(x:50,y:50,width:1,height:1),format:.RGBA8,colorSpace:CGColorSpace(name:CGColorSpace.sRGB))
+        XCTAssertGreaterThan(bytes[0],250)
     }
     func testRecipeIntensityAndManualControls() {
         var s = EditSettings(); s.beautyLook = .evening; s.beautyAmount = 0

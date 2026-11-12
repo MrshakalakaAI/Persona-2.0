@@ -26,6 +26,27 @@ struct FaceMasks {
         for p in points.dropFirst() { c.addLine(to:p) }
         c.closePath(); c.fillPath()
     }
+    /// Andrew's monotone chain: a closed, non-self-intersecting face envelope.
+    /// Contour samples are treated as points, never assumed to be a boundary walk.
+    func convexHull(_ points: [CGPoint]) -> [CGPoint] {
+        let sorted = points.sorted { $0.x == $1.x ? $0.y < $1.y : $0.x < $1.x }
+        var unique: [CGPoint] = []
+        for point in sorted { if unique.last != point { unique.append(point) } }
+        guard unique.count > 2 else { return unique }
+        func cross(_ a: CGPoint,_ b: CGPoint,_ c: CGPoint) -> CGFloat {
+            (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x)
+        }
+        var lower: [CGPoint] = [], upper: [CGPoint] = []
+        for point in unique {
+            while lower.count >= 2 && cross(lower[lower.count-2],lower[lower.count-1],point) <= 0 { lower.removeLast() }
+            lower.append(point)
+        }
+        for point in unique.reversed() {
+            while upper.count >= 2 && cross(upper[upper.count-2],upper[upper.count-1],point) <= 0 { upper.removeLast() }
+            upper.append(point)
+        }
+        return Array(lower.dropLast())+Array(upper.dropLast())
+    }
     func skin(_ f: FaceGeometry) -> CIImage {
         raster(blur:f.bounds.width*0.018) { c in
             // Jaw landmarks plus an estimated forehead cap; excludes eye/brow/lip/nose edges.
@@ -37,7 +58,7 @@ struct FaceMasks {
                 if let first = p.first, let last = p.last, first.x > last.x { p.reverse() }
                 p += [CGPoint(x:b.maxX-b.width*0.10,y:b.maxY-b.height*0.12),
                       CGPoint(x:b.midX,y:b.maxY),CGPoint(x:b.minX+b.width*0.10,y:b.maxY-b.height*0.12)]
-                polygon(c,p)
+                polygon(c,convexHull(p))
             } else { c.fillEllipse(in:b.insetBy(dx:b.width*0.1,dy:b.height*0.03)) }
             c.setFillColor(UIColor.black.cgColor)
             for region in [f.leftEye,f.rightEye,f.leftBrow,f.rightBrow,f.outerLips] {
