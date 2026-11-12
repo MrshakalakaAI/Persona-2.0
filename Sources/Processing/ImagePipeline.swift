@@ -101,7 +101,7 @@ final class ImagePipeline {
         }
         // Warp after retouch so masks stay attached to the altered features.
         for f in activeFaces { out = try geometry(out,face:f,settings:s) }
-        out = applyBrushes(out,dabs:s.dabs)
+        out = try applyBrushes(out,dabs:s.dabs)
         return includeCrop ? crop(out,settings:s) : out
     }
     func color(_ input: CIImage, settings s: EditSettings) -> CIImage {
@@ -201,10 +201,10 @@ final class ImagePipeline {
         let plan = CropPlan.make(extent:input.extent,settings:s)
         return input.transformed(by:plan.transform).cropped(to:plan.output)
     }
-    private func applyBrushes(_ input: CIImage, dabs: [RetouchDab]) -> CIImage {
+    private func applyBrushes(_ input: CIImage, dabs: [RetouchDab]) throws -> CIImage {
         var out = input
         let e = input.extent
-        for dab in dabs {
+        for (index,dab) in dabs.enumerated() {
             let center = CGPoint(x:CGFloat(dab.x)*e.width,y:CGFloat(dab.y)*e.height)
             let radius = max(2,CGFloat(dab.radius)*min(e.width,e.height))
             let mask = CIFilter(name:"CIRadialGradient",parameters:["inputCenter":CIVector(cgPoint:center),"inputRadius0":radius*0.5,"inputRadius1":radius,"inputColor0":CIColor.white,"inputColor1":CIColor.black])!.outputImage!.cropped(to:e)
@@ -219,6 +219,7 @@ final class ImagePipeline {
             case .darken: front = out.applyingFilter("CIExposureAdjust",parameters:[kCIInputEVKey:-0.35])
             }
             out = blend(front,over:out,mask:mask,amount:dab.strength)
+            if (index+1) % 8 == 0 { out = try materialize(out) }
         }
         return out
     }
