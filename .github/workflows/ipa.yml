@@ -11,7 +11,7 @@ concurrency:
 jobs:
   build:
     # Standard runner, public repository; no larger runners, caches or billed artifact storage.
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +28,7 @@ jobs:
           set -o pipefail
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(v["udid"] for group in d["devices"].values() for v in group if "iPhone" in v["name"]))')
           xcodebuild -project PersonaFree.xcodeproj -scheme PersonaFree -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath test-build -resultBundlePath TestResults.xcresult CODE_SIGNING_ALLOWED=NO test 2>&1 | tee tests.log
+          xcrun simctl launch "$DEVICE" com.personafree.editor
           xcrun simctl io "$DEVICE" screenshot simulator.png
       - name: Package and verify IPA
         run: |
