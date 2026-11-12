@@ -34,6 +34,11 @@ final class PortraitToolsTests: XCTestCase {
         let width = Int(roi.width), height = Int(roi.height)
         let geometric = FaceMasks(extent:image.extent).skin(face)
         let skin = PortraitDetail().skinMask(image,geometric:geometric)
+        var maskPixels = [UInt8](repeating:0,count:width*height*4)
+        pipeline.context.render(skin,toBitmap:&maskPixels,rowBytes:width*4,bounds:roi,format:.RGBA8,colorSpace:CGColorSpace(name:CGColorSpace.sRGB))
+        let coverage = stride(from:0,to:maskPixels.count,by:4).reduce(0.0) { $0+Double(maskPixels[$1])/255 }/Double(width*height)
+        print("Beauty actual skin mask coverage \(coverage), contour endpoints \(String(describing:face.contour.first)) → \(String(describing:face.contour.last))")
+        XCTAssertGreaterThan(coverage,0.2,"Skin effects must cover actual face pixels")
         let maskAttachment = XCTAttachment(image:try pipeline.bitmap(skin)); maskAttachment.name = "Beauty actual skin coverage"; maskAttachment.lifetime = .keepAlways; add(maskAttachment)
         func pixels(_ output: CIImage) -> [UInt8] {
             var bytes = [UInt8](repeating:0,count:width*height*4)

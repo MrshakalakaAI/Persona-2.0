@@ -32,6 +32,9 @@ struct FaceMasks {
             let b = f.bounds
             if f.contour.count >= 5 {
                 var p = f.contour
+                // Vision contour direction must not create a self-intersecting
+                // jaw/forehead polygon when closing the upper face.
+                if let first = p.first, let last = p.last, first.x > last.x { p.reverse() }
                 p += [CGPoint(x:b.maxX-b.width*0.10,y:b.maxY-b.height*0.12),
                       CGPoint(x:b.midX,y:b.maxY),CGPoint(x:b.minX+b.width*0.10,y:b.maxY-b.height*0.12)]
                 polygon(c,p)
