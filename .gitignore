@@ -1,0 +1,9 @@
+.DS_Store
+build/
+test-build/
+*.xcodeproj/
+*.xcresult/
+Payload/
+*.ipa
+*.log
+__pycache__/

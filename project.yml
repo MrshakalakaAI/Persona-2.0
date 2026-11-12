@@ -5,17 +5,43 @@ settings:
   base:
     IPHONEOS_DEPLOYMENT_TARGET: '17.0'
     SWIFT_VERSION: '5.9'
+    MARKETING_VERSION: '1.0.0'
+    CURRENT_PROJECT_VERSION: '10'
+    CODE_SIGNING_ALLOWED: NO
+    TARGETED_DEVICE_FAMILY: '1'
 targets:
   PersonaFree:
     type: application
     platform: iOS
-    sources: [Sources]
+    sources: [Sources, Resources]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.personafree.editor
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: personaж
-        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Выбор фотографии для редактирования
-        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: Сохранение обработанного фото
-        TARGETED_DEVICE_FAMILY: '1'
-        CODE_SIGNING_ALLOWED: NO
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: Выбор фото и видео для редактирования
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: Сохранение обработанных фото и видео
+        INFOPLIST_KEY_NSCameraUsageDescription: Съёмка портретов передней и задней камерой
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.photography
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  PersonaFreeTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: PersonaFree
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  PersonaFree:
+    build:
+      targets:
+        PersonaFree: all
+        PersonaFreeTests: [test]
+    test:
+      targets: [PersonaFreeTests]
+      gatherCoverageData: true
